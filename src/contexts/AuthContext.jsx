@@ -18,6 +18,14 @@ export const AuthProvider = ({ children }) => {
   const [profileLoading, setProfileLoading] = useState(false)
   const [isDemoMode, setIsDemoMode] = useState(false)
 
+  // Check for forced demo mode
+  useEffect(() => {
+    const forceDemoMode = localStorage.getItem('volta_force_demo_mode');
+    if (forceDemoMode === 'true' && user) {
+      setIsDemoMode(true);
+    }
+  }, [user]);
+
   // Isolated async operations - never called from auth callbacks
   const profileOperations = {
     async load(userId) {
@@ -25,7 +33,19 @@ export const AuthProvider = ({ children }) => {
       setProfileLoading(true)
       try {
         const { data, error } = await supabase?.from('user_profiles')?.select('*')?.eq('id', userId)?.single()
-        if (!error) setUserProfile(data)
+        if (!error) {
+          // Convert snake_case to camelCase for display_name and timezone
+          const profile = {
+            ...data,
+            displayName: data?.display_name,
+            timezone: data?.timezone,
+            fullName: data?.full_name,
+            evolutionBadges: data?.evolution_badges,
+            notificationTimes: data?.notification_times,
+            notificationEnabled: data?.notification_enabled
+          };
+          setUserProfile(profile);
+        }
       } catch (error) {
         console.error('Profile load error:', error)
       } finally {
@@ -69,7 +89,8 @@ export const AuthProvider = ({ children }) => {
       (event, session) => {
         authStateHandlers?.onChange(event, session)
         // Update demo mode based on session
-        setIsDemoMode(!session)
+        const forceDemoMode = localStorage.getItem('volta_force_demo_mode');
+        setIsDemoMode(!session || forceDemoMode === 'true')
       }
     )
 
@@ -82,6 +103,7 @@ export const AuthProvider = ({ children }) => {
       const { data, error } = await supabase?.auth?.signInWithPassword({ email, password })
       if (!error) {
         setIsDemoMode(false)
+        localStorage.removeItem('volta_force_demo_mode');
       }
       return { data, error }
     } catch (error) {
@@ -96,6 +118,7 @@ export const AuthProvider = ({ children }) => {
         setUser(null)
         profileOperations?.clear()
         setIsDemoMode(true)
+        localStorage.removeItem('volta_force_demo_mode');
       }
       return { error }
     } catch (error) {
@@ -107,8 +130,42 @@ export const AuthProvider = ({ children }) => {
     if (!user) return { error: { message: 'No user logged in' } }
     
     try {
-      const { data, error } = await supabase?.from('user_profiles')?.update(updates)?.eq('id', user?.id)?.select()?.single()
-      if (!error) setUserProfile(data)
+      // Convert camelCase to snake_case for database
+      const dbUpdates = {};
+      if (updates?.displayName !== undefined) dbUpdates.display_name = updates?.displayName;
+      if (updates?.timezone !== undefined) dbUpdates.timezone = updates?.timezone;
+      if (updates?.settings !== undefined) dbUpdates.settings = updates?.settings;
+      if (updates?.evolutionBadges !== undefined) dbUpdates.evolution_badges = updates?.evolutionBadges;
+      if (updates?.notificationTimes !== undefined) dbUpdates.notification_times = updates?.notificationTimes;
+      if (updates?.notificationEnabled !== undefined) dbUpdates.notification_enabled = updates?.notificationEnabled;
+      
+      const { data, error } = await supabase?.from('user_profiles')?.update(dbUpdates)?.eq('id', user?.id)?.select()?.single()
+      if (!error) {
+        // Convert back to camelCase
+        const profile = {
+          ...data,
+          displayName: data?.display_name,
+          timezone: data?.timezone,
+          fullName: data?.full_name,
+          evolutionBadges: data?.evolution_badges,
+          notificationTimes: data?.notification_times,
+          notificationEnabled: data?.notification_enabled
+        };
+        setUserProfile(profile);
+      }
+      return { data, error }
+    } catch (error) {
+      return { error: { message: 'Network error. Please try again.' } }
+    }
+  }
+
+  const signUp = async (email, password, options = {}) => {
+    try {
+      const { data, error } = await supabase?.auth?.signUp({ email, password, ...options })
+      if (!error) {
+        setIsDemoMode(false)
+        localStorage.removeItem('volta_force_demo_mode');
+      }
       return { data, error }
     } catch (error) {
       return { error: { message: 'Network error. Please try again.' } }
@@ -121,6 +178,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     profileLoading,
     signIn,
+    signUp,
     signOut,
     updateProfile,
     isAuthenticated: !!user,

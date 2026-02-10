@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../components/AppIcon';
 import VoltaLogo from '../components/VoltaLogo';
 import { restDayService } from '../services/voltaService';
 import { useAuth } from '../contexts/AuthContext';
+import { trackBrainCheckIn, trackScreenView } from '../utils/analytics';
 
 const BrainCheckInRitual = () => {
   const navigate = useNavigate();
@@ -14,11 +15,23 @@ const BrainCheckInRitual = () => {
   const [restDayDuration, setRestDayDuration] = useState(1);
   const [isSubmittingRest, setIsSubmittingRest] = useState(false);
 
+  // Track screen view on mount
+  useEffect(() => {
+    trackScreenView('Brain Check-In Ritual');
+  }, []);
+
   const handleCheckIn = (state) => {
     const today = new Date()?.toISOString()?.split('T')?.[0];
     localStorage?.setItem('volta_brain_checkin_date', today);
     localStorage?.setItem('volta_brain_checkin_state', state);
     setSelectedState(state);
+    
+    // Track brain check-in event
+    trackBrainCheckIn({
+      state,
+      date: today,
+      user_type: user?.id ? 'authenticated' : 'demo'
+    });
     
     // Smooth transition to Today screen
     setIsTransitioning(true);

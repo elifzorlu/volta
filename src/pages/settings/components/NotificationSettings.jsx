@@ -1,7 +1,16 @@
+import { useState } from 'react';
 import Icon from '../../../components/AppIcon';
 import { Checkbox } from '../../../components/ui/Checkbox';
+import Button from '../../../components/ui/Button';
 
 const NotificationSettings = ({ settings, onChange }) => {
+  const [notificationTimes, setNotificationTimes] = useState(
+    settings?.notificationTimes || ['09:00', '21:00']
+  );
+  const [notificationEnabled, setNotificationEnabled] = useState(
+    settings?.notificationEnabled !== false
+  );
+
   const notificationOptions = [
     {
       key: 'sessionCompletionAlerts',
@@ -33,6 +42,32 @@ const NotificationSettings = ({ settings, onChange }) => {
     onChange(key, !settings?.[key]);
   };
 
+  const handleNotificationEnabledToggle = () => {
+    const newValue = !notificationEnabled;
+    setNotificationEnabled(newValue);
+    onChange('notificationEnabled', newValue);
+  };
+
+  const handleTimeChange = (index, value) => {
+    const newTimes = [...notificationTimes];
+    newTimes[index] = value;
+    setNotificationTimes(newTimes);
+    onChange('notificationTimes', newTimes);
+  };
+
+  const handleAddTime = () => {
+    const newTimes = [...notificationTimes, '12:00'];
+    setNotificationTimes(newTimes);
+    onChange('notificationTimes', newTimes);
+  };
+
+  const handleRemoveTime = (index) => {
+    if (notificationTimes?.length <= 1) return; // Keep at least one time
+    const newTimes = notificationTimes?.filter((_, i) => i !== index);
+    setNotificationTimes(newTimes);
+    onChange('notificationTimes', newTimes);
+  };
+
   return (
     <div className="border border-[rgba(255,255,255,0.06)] rounded-lg p-6">
       <div className="flex items-center gap-3 mb-6">
@@ -42,7 +77,69 @@ const NotificationSettings = ({ settings, onChange }) => {
         </h2>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
+        {/* Time-Based Daily Log Reminders */}
+        <div className="p-4 bg-[rgba(57,255,136,0.03)] border border-[rgba(57,255,136,0.15)] rounded-lg">
+          <div className="flex items-start gap-3 mb-4">
+            <Icon name="Clock" size={18} color="#39FF88" className="mt-1" />
+            <div className="flex-1">
+              <h3 className="text-sm font-medium mb-1">Daily Log Reminders</h3>
+              <p className="text-xs text-[rgba(237,237,237,0.6)] mb-3">
+                Get gentle prompts at specific times to log your daily metrics and build consistent reflection habits
+              </p>
+              
+              {/* Enable/Disable Toggle */}
+              <div className="mb-4">
+                <Checkbox
+                  id="notification-enabled"
+                  checked={notificationEnabled}
+                  onChange={handleNotificationEnabledToggle}
+                  label="Enable time-based reminders"
+                />
+              </div>
+
+              {/* Time Pickers */}
+              {notificationEnabled && (
+                <div className="space-y-3">
+                  <label className="text-xs font-medium text-[rgba(237,237,237,0.8)]">
+                    Reminder Times (your local timezone)
+                  </label>
+                  {notificationTimes?.map((time, index) => (
+                    <div key={index} className="flex items-center gap-3">
+                      <input
+                        type="time"
+                        value={time}
+                        onChange={(e) => handleTimeChange(index, e?.target?.value)}
+                        className="flex-1 px-3 py-2 bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] rounded-md text-sm text-[#EDEDED] focus:outline-none focus:border-[#39FF88] transition-colors"
+                      />
+                      {notificationTimes?.length > 1 && (
+                        <button
+                          onClick={() => handleRemoveTime(index)}
+                          className="p-2 hover:bg-[rgba(255,255,255,0.05)] rounded-md transition-colors"
+                        >
+                          <Icon name="X" size={16} color="rgba(237,237,237,0.6)" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {notificationTimes?.length < 5 && (
+                    <Button
+                      onClick={handleAddTime}
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-xs"
+                    >
+                      <Icon name="Plus" size={14} className="mr-2" />
+                      Add Another Time
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Existing Notification Options */}
         {notificationOptions?.map((option) => (
           <div
             key={option?.key}

@@ -5,6 +5,9 @@ import PomodoroSettings from './components/PomodoroSettings';
 import ThemeSettings from './components/ThemeSettings';
 import NotificationSettings from './components/NotificationSettings';
 import AccountSettings from './components/AccountSettings';
+import ProfileSettings from './components/ProfileSettings';
+import StartFreshSection from './components/StartFreshSection';
+import DemoModeToggle from './components/DemoModeToggle';
 import Button from '../../components/ui/Button';
 
 const Settings = () => {
@@ -21,7 +24,14 @@ const Settings = () => {
     sessionCompletionAlerts: true,
     breakReminders: true,
     dailyReflectionPrompts: true,
-    soundEnabled: true
+    soundEnabled: true,
+    // Time-based notification settings
+    notificationTimes: ['09:00', '21:00'],
+    notificationEnabled: true
+  });
+  const [profileData, setProfileData] = useState({
+    displayName: '',
+    timezone: ''
   });
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
@@ -34,6 +44,20 @@ const Settings = () => {
         ...userProfile?.settings
       }));
     }
+    if (userProfile) {
+      setProfileData({
+        displayName: userProfile?.displayName || '',
+        timezone: userProfile?.timezone || ''
+      });
+      // Load notification times from profile
+      if (userProfile?.notificationTimes) {
+        setSettings(prev => ({
+          ...prev,
+          notificationTimes: userProfile?.notificationTimes,
+          notificationEnabled: userProfile?.notificationEnabled !== false
+        }));
+      }
+    }
   }, [userProfile]);
 
   const handleSettingChange = (key, value) => {
@@ -44,17 +68,30 @@ const Settings = () => {
     setSaveMessage(''); // Clear save message on change
   };
 
+  const handleProfileSave = (data) => {
+    setProfileData(data);
+    setSaveMessage('');
+  };
+
   const handleSaveSettings = async () => {
     if (isDemoMode) {
       setSaveMessage('Settings saved locally (Demo Mode)');
-      localStorage.setItem('volta_settings', JSON.stringify(settings));
+      localStorage.setItem('volta_settings', JSON.stringify({ ...settings, ...profileData }));
+      localStorage.setItem('volta_notification_times', JSON.stringify(settings?.notificationTimes));
+      localStorage.setItem('volta_notification_enabled', settings?.notificationEnabled?.toString());
       setTimeout(() => setSaveMessage(''), 3000);
       return;
     }
 
     setIsSaving(true);
     try {
-      const { error } = await updateProfile({ settings });
+      const { error } = await updateProfile({ 
+        settings,
+        display_name: profileData?.displayName,
+        timezone: profileData?.timezone,
+        notification_times: settings?.notificationTimes,
+        notification_enabled: settings?.notificationEnabled
+      });
       if (error) {
         setSaveMessage('Failed to save settings');
       } else {
@@ -85,6 +122,12 @@ const Settings = () => {
 
         {/* Settings Sections */}
         <div className="space-y-8">
+          {/* Profile Settings */}
+          <ProfileSettings onSave={handleProfileSave} />
+
+          {/* Demo Mode Toggle */}
+          <DemoModeToggle />
+
           {/* Pomodoro Customization */}
           <PomodoroSettings 
             settings={settings}
@@ -102,6 +145,9 @@ const Settings = () => {
             settings={settings}
             onChange={handleSettingChange}
           />
+
+          {/* Start Fresh Section */}
+          <StartFreshSection />
 
           {/* Account Management */}
           <AccountSettings />

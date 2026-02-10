@@ -35,6 +35,11 @@ const PrimaryTabNavigation = () => {
       icon: 'TrendingUp'
     },
     {
+      label: 'Predictions',
+      path: '/predictions',
+      icon: 'Brain'
+    },
+    {
       label: 'Goals',
       path: '/goal-setting',
       icon: 'Target'

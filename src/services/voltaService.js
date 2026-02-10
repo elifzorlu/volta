@@ -1,13 +1,27 @@
 import { supabase } from '../lib/supabase';
-import {
-  isDemoMode,
-  demoDailyLogs,
-  demoWorkSessions,
-  demoCommitments,
-  demoRecommendations,
-  demoProductivityScores,
-  getTodayDemoData
-} from '../utils/demoData';
+import { toCamelCase, toSnakeCase } from '../utils/cn';
+import { isDemoMode, demoDailyLogs, demoWorkSessions, demoCommitments, demoRecommendations, demoMLPredictions } from '../utils/demoData';
+
+// Add missing demo data variables
+const demoUserProfile = {
+  id: 'demo-user',
+  name: 'Demo User',
+  email: 'demo@example.com',
+  createdAt: new Date()?.toISOString()
+};
+
+const getTodayDemoData = () => {
+  const today = new Date()?.toISOString()?.split('T')?.[0];
+  return {
+    dailyLog: demoDailyLogs?.find(log => log?.logDate === today) || demoDailyLogs?.[0],
+    workSessions: demoWorkSessions?.filter(s => s?.sessionDate === today)
+  };
+};
+
+const demoProductivityScores = [
+  { id: 'demo-score-1', dailyLogId: 'demo-log-1', scoreDate: new Date()?.toISOString()?.split('T')?.[0], score: 85, caption: 'Strong performance', explanation: 'You maintained good focus today.' },
+  { id: 'demo-score-2', dailyLogId: 'demo-log-2', scoreDate: new Date(Date.now() - 86400000)?.toISOString()?.split('T')?.[0], score: 75, caption: 'Solid effort', explanation: 'Good work overall.' }
+];
 
 // Helper function to check schema errors
 function isSchemaError(error) {
@@ -42,29 +56,68 @@ function isSchemaError(error) {
   return false;
 }
 
-// Convert snake_case to camelCase
-function toCamelCase(obj) {
-  if (!obj || typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj?.map(toCamelCase);
-  
-  return Object.keys(obj)?.reduce((acc, key) => {
-    const camelKey = key?.replace(/_([a-z])/g, (_, letter) => letter?.toUpperCase());
-    acc[camelKey] = typeof obj?.[key] === 'object' ? toCamelCase(obj?.[key]) : obj?.[key];
-    return acc;
-  }, {});
-}
+// Profile Service
+export const profileService = {
+  async getProfile(userId) {
+    // Demo mode: return demo profile
+    if (isDemoMode(userId)) {
+      return { data: demoUserProfile, error: null };
+    }
 
-// Convert camelCase to snake_case
-function toSnakeCase(obj) {
-  if (!obj || typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj?.map(toSnakeCase);
-  
-  return Object.keys(obj)?.reduce((acc, key) => {
-    const snakeKey = key?.replace(/[A-Z]/g, letter => `_${letter?.toLowerCase()}`);
-    acc[snakeKey] = typeof obj?.[key] === 'object' ? toSnakeCase(obj?.[key]) : obj?.[key];
-    return acc;
-  }, {});
-}
+    try {
+      const { data, error } = await supabase
+        ?.from('user_profiles')
+        ?.select('*')
+        ?.eq('id', userId)
+        ?.single();
+
+      if (error) {
+        if (isSchemaError(error)) {
+          console.error('Schema error:', error?.message);
+          throw error;
+        }
+        return { data: null, error };
+      }
+
+      return { data: toCamelCase(data), error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  },
+
+  async updateProfile(userId, updates) {
+    // Demo mode: save to localStorage
+    if (isDemoMode(userId)) {
+      const stored = localStorage.getItem('volta_demo_profile');
+      const current = stored ? JSON.parse(stored) : demoUserProfile;
+      const updated = { ...current, ...updates };
+      localStorage.setItem('volta_demo_profile', JSON.stringify(updated));
+      return { data: updated, error: null };
+    }
+
+    try {
+      const snakeCaseUpdates = toSnakeCase(updates);
+      const { data, error } = await supabase
+        ?.from('user_profiles')
+        ?.update(snakeCaseUpdates)
+        ?.eq('id', userId)
+        ?.select()
+        ?.single();
+
+      if (error) {
+        if (isSchemaError(error)) {
+          console.error('Schema error:', error?.message);
+          throw error;
+        }
+        return { data: null, error };
+      }
+
+      return { data: toCamelCase(data), error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  }
+};
 
 // Custom Categories Service
 export const customCategoriesService = {
@@ -862,6 +915,18 @@ export const predictionEngineService = {
       console.error('Generate recommendations error:', error);
       throw error;
     }
+  },
+
+  // Get ML predictions for demo mode
+  getMLPredictions(userId) {
+    if (isDemoMode(userId)) {
+      return {
+        decisions: demoMLPredictions?.decisionFocused || [],
+        scenarios: demoMLPredictions?.counterfactual || [],
+        dataSufficiency: demoMLPredictions?.dataSufficiency || null
+      };
+    }
+    return { decisions: [], scenarios: [], dataSufficiency: null };
   }
 };
 
@@ -1509,69 +1574,373 @@ function generateSignatureName(category, timeWindow, pattern, categoryEfficiency
     night: 'Night-Shift'
   };
 
-  // Pattern-based signatures
+  // Calculate efficiency variance for pattern detection
+  const efficiencyValues = Object.values(timeEfficiency);
+  const maxEff = Math.max(...efficiencyValues);
+  const minEff = Math.min(...efficiencyValues);
+  const variance = maxEff - minEff;
+  
+  // Calculate category dominance
+  const categoryValues = Object.values(categoryEfficiency);
+  const categoryMax = Math.max(...categoryValues);
+  const categoryVariance = categoryMax - Math.min(...categoryValues);
+
+  // Pattern-based signatures (expanded)
   if (pattern === 'late-blooming') {
-    return {
-      signature: `The Late-Blooming ${categoryLabel?.[category]}`,
-      explanation: 'Your efficiency improves as you build momentum over time.'
-    };
+    const signatures = [
+      {
+        signature: `The Late-Blooming ${categoryLabel?.[category]}`,
+        explanation: 'Your efficiency improves as you build momentum over time.'
+      },
+      {
+        signature: 'The Momentum Builder',
+        explanation: 'You warm up slowly but finish strong—your best work comes after the first hour.'
+      },
+      {
+        signature: 'The Crescendo Mind',
+        explanation: 'Like a symphony, your focus builds to a powerful finale.'
+      }
+    ];
+    return signatures?.[Math.floor(Math.random() * signatures?.length)];
   }
 
   if (pattern === 'sprint') {
-    return {
-      signature: 'The Focus Sprinter',
-      explanation: 'You excel in short, intense bursts of concentrated work.'
-    };
+    const signatures = [
+      {
+        signature: 'The Focus Sprinter',
+        explanation: 'You excel in short, intense bursts of concentrated work.'
+      },
+      {
+        signature: 'The Pomodoro Perfectionist',
+        explanation: 'Your brain thrives on tight time boxes—45 minutes is your sweet spot.'
+      },
+      {
+        signature: 'The Lightning Thinker',
+        explanation: 'Quick strikes of deep focus are your superpower.'
+      },
+      {
+        signature: 'The Burst Optimizer',
+        explanation: 'You pack more insight into 30 minutes than most do in 3 hours.'
+      }
+    ];
+    return signatures?.[Math.floor(Math.random() * signatures?.length)];
   }
 
   if (pattern === 'marathon') {
-    return {
-      signature: 'The Slow Burner',
-      explanation: 'You thrive in extended deep-work sessions with sustained focus.'
-    };
+    const signatures = [
+      {
+        signature: 'The Slow Burner',
+        explanation: 'You thrive in extended deep-work sessions with sustained focus.'
+      },
+      {
+        signature: 'The Deep Diver',
+        explanation: 'You need 90+ minutes to hit flow—but once there, you\'re unstoppable.'
+      },
+      {
+        signature: 'The Endurance Mind',
+        explanation: 'Long sessions are where you shine—your focus deepens over hours.'
+      },
+      {
+        signature: 'The Flow State Architect',
+        explanation: 'You build cathedrals of thought in 3-hour blocks.'
+      }
+    ];
+    return signatures?.[Math.floor(Math.random() * signatures?.length)];
   }
 
   if (pattern === 'split-day') {
-    return {
-      signature: 'The Split-Day Thinker',
-      explanation: 'You have two peak windows—morning clarity and evening flow.'
-    };
+    const signatures = [
+      {
+        signature: 'The Split-Day Thinker',
+        explanation: 'You have two peak windows—morning clarity and evening flow.'
+      },
+      {
+        signature: 'The Dual-Peak Performer',
+        explanation: 'Your energy rises twice: once at dawn, again at dusk.'
+      },
+      {
+        signature: 'The Biphasic Brain',
+        explanation: 'You operate on two gears—morning logic, evening creativity.'
+      }
+    ];
+    return signatures?.[Math.floor(Math.random() * signatures?.length)];
   }
 
-  // Time-based signatures
-  if (timeWindow === 'morning' || timeWindow === 'earlyMorning') {
-    return {
-      signature: `The ${timeLabel?.[timeWindow]} ${categoryLabel?.[category]}`,
-      explanation: 'Your best ideas happen before noon.'
-    };
+  // High variance = inconsistent energy (new pattern)
+  if (variance > 1.5) {
+    const signatures = [
+      {
+        signature: 'The Chaotic Genius',
+        explanation: 'Your productivity is unpredictable—but when you peak, you soar.'
+      },
+      {
+        signature: 'The Wild Card',
+        explanation: 'Your best work happens when you least expect it.'
+      },
+      {
+        signature: 'The Storm Chaser',
+        explanation: 'You ride waves of inspiration—calm, then lightning.'
+      }
+    ];
+    return signatures?.[Math.floor(Math.random() * signatures?.length)];
+  }
+
+  // Low variance = consistent energy (new pattern)
+  if (variance < 0.5) {
+    const signatures = [
+      {
+        signature: 'The Steady Engine',
+        explanation: 'Your productivity is remarkably consistent—no peaks, no crashes.'
+      },
+      {
+        signature: 'The Metronome Mind',
+        explanation: 'You deliver the same quality output, any time of day.'
+      },
+      {
+        signature: 'The All-Day Performer',
+        explanation: 'Your energy stays flat and reliable from dawn to dusk.'
+      }
+    ];
+    return signatures?.[Math.floor(Math.random() * signatures?.length)];
+  }
+
+  // Time-based signatures (expanded with more variety)
+  if (timeWindow === 'earlyMorning') {
+    const signatures = [
+      {
+        signature: `The ${timeLabel?.[timeWindow]} ${categoryLabel?.[category]}`,
+        explanation: 'Your best ideas happen before noon.'
+      },
+      {
+        signature: 'The Dawn Architect',
+        explanation: 'You build empires before breakfast—5am is your power hour.'
+      },
+      {
+        signature: 'The Sunrise Strategist',
+        explanation: 'While the world sleeps, your mind is sharpest.'
+      },
+      {
+        signature: 'The First Light Thinker',
+        explanation: 'Your neurons fire fastest when the sky turns pink.'
+      }
+    ];
+    return signatures?.[Math.floor(Math.random() * signatures?.length)];
+  }
+
+  if (timeWindow === 'morning') {
+    const signatures = [
+      {
+        signature: `The ${timeLabel?.[timeWindow]} ${categoryLabel?.[category]}`,
+        explanation: 'Your best ideas happen before noon.'
+      },
+      {
+        signature: 'The Morning Catalyst',
+        explanation: 'Your brain peaks between 9-11am—protect this window fiercely.'
+      },
+      {
+        signature: 'The AM Optimizer',
+        explanation: 'Meetings after lunch? Never. Your mornings are sacred.'
+      },
+      {
+        signature: 'The Pre-Noon Powerhouse',
+        explanation: 'You accomplish more before lunch than most do all day.'
+      },
+      {
+        signature: 'The Coffee-Fueled Visionary',
+        explanation: 'First cup + morning light = your creative peak.'
+      }
+    ];
+    return signatures?.[Math.floor(Math.random() * signatures?.length)];
   }
 
   if (timeWindow === 'night') {
-    return {
-      signature: `The ${timeLabel?.[timeWindow]} ${categoryLabel?.[category]}`,
-      explanation: 'Your mind comes alive when the world quiets down.'
-    };
+    const signatures = [
+      {
+        signature: `The ${timeLabel?.[timeWindow]} ${categoryLabel?.[category]}`,
+        explanation: 'Your mind comes alive when the world quiets down.'
+      },
+      {
+        signature: 'The Midnight Architect',
+        explanation: 'Your best code ships after 11pm—silence is your fuel.'
+      },
+      {
+        signature: 'The Nocturnal Innovator',
+        explanation: 'When others sleep, you create your masterpieces.'
+      },
+      {
+        signature: 'The Moon-Powered Mind',
+        explanation: 'Darkness brings clarity—your neurons fire after sunset.'
+      },
+      {
+        signature: 'The 2am Philosopher',
+        explanation: 'Your deepest insights arrive when the clock strikes midnight.'
+      },
+      {
+        signature: 'The Night Owl Savant',
+        explanation: 'You don\'t fight your circadian rhythm—you own it.'
+      }
+    ];
+    return signatures?.[Math.floor(Math.random() * signatures?.length)];
   }
 
   if (timeWindow === 'afternoon') {
-    return {
-      signature: `The Afternoon ${categoryLabel?.[category]}`,
-      explanation: 'You hit your stride in the middle of the day.'
-    };
+    const signatures = [
+      {
+        signature: `The Afternoon ${categoryLabel?.[category]}`,
+        explanation: 'You hit your stride in the middle of the day.'
+      },
+      {
+        signature: 'The Post-Lunch Performer',
+        explanation: 'While others crash at 2pm, you\'re just getting started.'
+      },
+      {
+        signature: 'The Midday Maverick',
+        explanation: 'Your focus peaks when the sun is highest.'
+      },
+      {
+        signature: 'The Second-Wind Specialist',
+        explanation: 'You defy the afternoon slump—1-4pm is your zone.'
+      },
+      {
+        signature: 'The Solar-Powered Thinker',
+        explanation: 'Peak sunlight = peak performance for your brain.'
+      }
+    ];
+    return signatures?.[Math.floor(Math.random() * signatures?.length)];
   }
 
   if (timeWindow === 'evening') {
-    return {
-      signature: `The Evening ${categoryLabel?.[category]}`,
-      explanation: 'Your focus sharpens as the day winds down.'
-    };
+    const signatures = [
+      {
+        signature: `The Evening ${categoryLabel?.[category]}`,
+        explanation: 'Your focus sharpens as the day winds down.'
+      },
+      {
+        signature: 'The Twilight Tactician',
+        explanation: 'Your best decisions happen between 5-8pm.'
+      },
+      {
+        signature: 'The Dusk Dynamo',
+        explanation: 'As others log off, your productivity curve spikes.'
+      },
+      {
+        signature: 'The Golden Hour Mind',
+        explanation: 'Your creativity blooms when the workday ends.'
+      },
+      {
+        signature: 'The After-Hours Achiever',
+        explanation: 'You save your hardest problems for after dinner.'
+      }
+    ];
+    return signatures?.[Math.floor(Math.random() * signatures?.length)];
   }
 
-  // Default
-  return {
-    signature: `The ${categoryLabel?.[category]}`,
-    explanation: 'Your cognitive rhythm is taking shape.'
-  };
+  // Category-dominant signatures (when one category is clearly dominant)
+  if (categoryVariance > 1.0) {
+    if (category === 'creative') {
+      const signatures = [
+        {
+          signature: 'The Idea Factory',
+          explanation: 'You generate concepts faster than you can capture them.'
+        },
+        {
+          signature: 'The Creative Cyclone',
+          explanation: 'Your imagination runs wild—structure is your only limit.'
+        },
+        {
+          signature: 'The Visionary Architect',
+          explanation: 'You see possibilities others miss—your mind builds futures.'
+        },
+        {
+          signature: 'The Divergent Thinker',
+          explanation: 'Linear thinking bores you—you connect dots across dimensions.'
+        }
+      ];
+      return signatures?.[Math.floor(Math.random() * signatures?.length)];
+    }
+
+    if (category === 'analytical') {
+      const signatures = [
+        {
+          signature: 'The Logic Engine',
+          explanation: 'You dissect problems with surgical precision.'
+        },
+        {
+          signature: 'The Pattern Detective',
+          explanation: 'You spot trends and anomalies others overlook.'
+        },
+        {
+          signature: 'The Systems Architect',
+          explanation: 'You see the matrix—every variable, every connection.'
+        },
+        {
+          signature: 'The Convergent Mind',
+          explanation: 'You take chaos and extract signal with ruthless efficiency.'
+        },
+        {
+          signature: 'The Debugger Supreme',
+          explanation: 'Complex problems don\'t scare you—they energize you.'
+        }
+      ];
+      return signatures?.[Math.floor(Math.random() * signatures?.length)];
+    }
+
+    if (category === 'studying') {
+      const signatures = [
+        {
+          signature: 'The Knowledge Sponge',
+          explanation: 'You absorb information at an extraordinary rate.'
+        },
+        {
+          signature: 'The Perpetual Student',
+          explanation: 'Learning isn\'t a task—it\'s your natural state.'
+        },
+        {
+          signature: 'The Synthesis Master',
+          explanation: 'You don\'t just learn—you connect ideas across domains.'
+        },
+        {
+          signature: 'The Curiosity Engine',
+          explanation: 'Every answer leads to three new questions.'
+        }
+      ];
+      return signatures?.[Math.floor(Math.random() * signatures?.length)];
+    }
+  }
+
+  // Balanced signatures (when no clear pattern emerges)
+  const balancedSignatures = [
+    {
+      signature: 'The Adaptive Mind',
+      explanation: 'You shift gears seamlessly—creative, then analytical, then back.'
+    },
+    {
+      signature: 'The Versatile Performer',
+      explanation: 'No single pattern defines you—you excel across contexts.'
+    },
+    {
+      signature: 'The Contextual Genius',
+      explanation: 'Your productivity depends on the task, not the time.'
+    },
+    {
+      signature: 'The Flexible Thinker',
+      explanation: 'You adapt your work style to match the challenge.'
+    },
+    {
+      signature: 'The Multi-Modal Mind',
+      explanation: 'You operate on multiple frequencies—no single rhythm defines you.'
+    },
+    {
+      signature: 'The Shapeshifter',
+      explanation: 'Your cognitive style changes with your environment.'
+    },
+    {
+      signature: 'The Renaissance Brain',
+      explanation: 'You refuse to be boxed in—every day brings a new mode.'
+    }
+  ];
+
+  return balancedSignatures?.[Math.floor(Math.random() * balancedSignatures?.length)];
 }
 
 // Productivity Score Calculation Service
@@ -1757,6 +2126,433 @@ export const streakService = {
       console.error('Get streak data error:', error);
       throw error;
     }
+  }
+};
+
+// Rest Day Service
+export const restDayService = {
+  async create(userId, restDayData) {
+    // Demo mode: store in localStorage
+    if (isDemoMode(userId)) {
+      const demoRestDays = JSON.parse(localStorage?.getItem('volta_demo_rest_days') || '[]');
+      const newRestDay = {
+        id: `demo-rest-${Date.now()}`,
+        userId,
+        startDate: restDayData?.startDate,
+        endDate: restDayData?.endDate,
+        reason: restDayData?.reason || 'Rest period',
+        createdAt: new Date()?.toISOString()
+      };
+      demoRestDays?.push(newRestDay);
+      localStorage?.setItem('volta_demo_rest_days', JSON.stringify(demoRestDays));
+      return { data: newRestDay, error: null };
+    }
+
+    try {
+      const { data, error } = await supabase
+        ?.from('rest_days')
+        ?.insert([toSnakeCase({ userId, ...restDayData })])
+        ?.select()
+        ?.single();
+
+      if (error) {
+        if (isSchemaError(error)) {
+          console.error('Schema error:', error?.message);
+          throw error;
+        }
+        return { data: null, error };
+      }
+
+      return { data: toCamelCase(data), error: null };
+    } catch (error) {
+      console.error('Create rest day error:', error);
+      return { data: null, error };
+    }
+  },
+
+  async getAll(userId) {
+    // Demo mode: return from localStorage
+    if (isDemoMode(userId)) {
+      const demoRestDays = JSON.parse(localStorage?.getItem('volta_demo_rest_days') || '[]');
+      return { data: demoRestDays, error: null };
+    }
+
+    try {
+      const { data, error } = await supabase
+        ?.from('rest_days')
+        ?.select('*')
+        ?.eq('user_id', userId)
+        ?.order('start_date', { ascending: false });
+
+      if (error) {
+        if (isSchemaError(error)) {
+          console.error('Schema error:', error?.message);
+          throw error;
+        }
+        return { data: null, error };
+      }
+
+      return { data: toCamelCase(data), error: null };
+    } catch (error) {
+      console.error('Get rest days error:', error);
+      return { data: null, error };
+    }
+  },
+
+  async isRestDay(userId, date) {
+    // Demo mode: check localStorage
+    if (isDemoMode(userId)) {
+      const demoRestDays = JSON.parse(localStorage?.getItem('volta_demo_rest_days') || '[]');
+      return demoRestDays?.some(rd => {
+        const checkDate = new Date(date);
+        const start = new Date(rd?.startDate);
+        const end = new Date(rd?.endDate);
+        return checkDate >= start && checkDate <= end;
+      });
+    }
+
+    try {
+      const { data, error } = await supabase
+        ?.from('rest_days')
+        ?.select('*')
+        ?.eq('user_id', userId)
+        ?.lte('start_date', date)
+        ?.gte('end_date', date)
+        ?.limit(1);
+
+      if (error) {
+        if (isSchemaError(error)) {
+          console.error('Schema error:', error?.message);
+          return false;
+        }
+        return false;
+      }
+
+      return data && data?.length > 0;
+    } catch (error) {
+      console.error('Check rest day error:', error);
+      return false;
+    }
+  },
+
+  async delete(userId, restDayId) {
+    // Demo mode: remove from localStorage
+    if (isDemoMode(userId)) {
+      const demoRestDays = JSON.parse(localStorage?.getItem('volta_demo_rest_days') || '[]');
+      const filtered = demoRestDays?.filter(rd => rd?.id !== restDayId);
+      localStorage?.setItem('volta_demo_rest_days', JSON.stringify(filtered));
+      return { error: null };
+    }
+
+    try {
+      const { error } = await supabase
+        ?.from('rest_days')
+        ?.delete()
+        ?.eq('id', restDayId)
+        ?.eq('user_id', userId);
+
+      if (error) {
+        if (isSchemaError(error)) {
+          console.error('Schema error:', error?.message);
+          throw error;
+        }
+        return { error };
+      }
+
+      return { error: null };
+    } catch (error) {
+      console.error('Delete rest day error:', error);
+      return { error };
+    }
+  }
+};
+
+// Habit Logs Service
+export const habitLogsService = {
+  async getAll(userId, startDate = null, endDate = null) {
+    // Demo mode: return demo habit logs
+    if (isDemoMode(userId)) {
+      const today = new Date();
+      const demoHabits = [];
+      
+      // Generate 14 days of demo data
+      for (let i = 0; i < 14; i++) {
+        const date = new Date(today);
+        date?.setDate(date?.getDate() - i);
+        const dateStr = date?.toISOString()?.split('T')?.[0];
+        
+        demoHabits?.push(
+          { id: `demo-med-${i}`, userId, habitTitle: 'Morning Meditation', logDate: dateStr, completed: i % 7 !== 0, createdAt: date?.toISOString() },
+          { id: `demo-ex-${i}`, userId, habitTitle: 'Exercise', logDate: dateStr, completed: i % 3 === 0, createdAt: date?.toISOString() },
+          { id: `demo-read-${i}`, userId, habitTitle: 'Read 30 Minutes', logDate: dateStr, completed: i < 7 ? i % 2 === 0 : i % 4 === 0, createdAt: date?.toISOString() }
+        );
+      }
+      
+      return { data: demoHabits, error: null };
+    }
+
+    try {
+      let query = supabase
+        ?.from('habit_logs')
+        ?.select('*')
+        ?.eq('user_id', userId)
+        ?.order('log_date', { ascending: false });
+
+      if (startDate) {
+        query = query?.gte('log_date', startDate);
+      }
+      if (endDate) {
+        query = query?.lte('log_date', endDate);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        if (isSchemaError(error)) {
+          console.error('Schema error:', error?.message);
+          throw error;
+        }
+        return { data: null, error };
+      }
+
+      return { data: toCamelCase(data), error: null };
+    } catch (error) {
+      console.error('Get habit logs error:', error);
+      return { data: null, error };
+    }
+  },
+
+  async getByDate(userId, logDate) {
+    // Demo mode: filter demo data by date
+    if (isDemoMode(userId)) {
+      const { data } = await this.getAll(userId);
+      return { data: data?.filter(h => h?.logDate === logDate), error: null };
+    }
+
+    try {
+      const { data, error } = await supabase
+        ?.from('habit_logs')
+        ?.select('*')
+        ?.eq('user_id', userId)
+        ?.eq('log_date', logDate)
+        ?.order('created_at', { ascending: true });
+
+      if (error) {
+        if (isSchemaError(error)) {
+          console.error('Schema error:', error?.message);
+          throw error;
+        }
+        return { data: null, error };
+      }
+
+      return { data: toCamelCase(data), error: null };
+    } catch (error) {
+      console.error('Get habit logs by date error:', error);
+      return { data: null, error };
+    }
+  },
+
+  async create(userId, habitTitle, logDate = new Date()?.toISOString()?.split('T')?.[0], completed = false) {
+    // Demo mode: return mock success
+    if (isDemoMode(userId)) {
+      return {
+        data: {
+          id: `demo-${Date.now()}`,
+          userId,
+          habitTitle,
+          logDate,
+          completed,
+          createdAt: new Date()?.toISOString()
+        },
+        error: null
+      };
+    }
+
+    try {
+      const { data, error } = await supabase
+        ?.from('habit_logs')
+        ?.insert({
+          user_id: userId,
+          habit_title: habitTitle,
+          log_date: logDate,
+          completed
+        })
+        ?.select()
+        ?.single();
+
+      if (error) {
+        if (isSchemaError(error)) {
+          console.error('Schema error:', error?.message);
+          throw error;
+        }
+        return { data: null, error };
+      }
+
+      return { data: toCamelCase(data), error: null };
+    } catch (error) {
+      console.error('Create habit log error:', error);
+      return { data: null, error };
+    }
+  },
+
+  async updateCompletion(userId, habitLogId, completed) {
+    // Demo mode: return mock success
+    if (isDemoMode(userId)) {
+      return {
+        data: { id: habitLogId, userId, completed },
+        error: null
+      };
+    }
+
+    try {
+      const { data, error } = await supabase
+        ?.from('habit_logs')
+        ?.update({ completed })
+        ?.eq('id', habitLogId)
+        ?.eq('user_id', userId)
+        ?.select()
+        ?.single();
+
+      if (error) {
+        if (isSchemaError(error)) {
+          console.error('Schema error:', error?.message);
+          throw error;
+        }
+        return { data: null, error };
+      }
+
+      return { data: toCamelCase(data), error: null };
+    } catch (error) {
+      console.error('Update habit completion error:', error);
+      return { data: null, error };
+    }
+  },
+
+  async delete(userId, habitLogId) {
+    // Demo mode: return mock success
+    if (isDemoMode(userId)) {
+      return { data: { success: true }, error: null };
+    }
+
+    try {
+      const { data, error } = await supabase
+        ?.from('habit_logs')
+        ?.delete()
+        ?.eq('id', habitLogId)
+        ?.eq('user_id', userId)
+        ?.select()
+        ?.single();
+
+      if (error) {
+        if (isSchemaError(error)) {
+          console.error('Schema error:', error?.message);
+          throw error;
+        }
+        return { data: null, error };
+      }
+
+      return { data: toCamelCase(data), error: null };
+    } catch (error) {
+      console.error('Delete habit log error:', error);
+      return { data: null, error };
+    }
+  },
+
+  // Get weekly statistics for all habits
+  async getWeeklyStats(userId, startDate, endDate) {
+    // Demo mode: calculate from demo data
+    if (isDemoMode(userId)) {
+      const { data: allLogs } = await this.getAll(userId, startDate, endDate);
+      return this.calculateWeeklyStats(allLogs);
+    }
+
+    try {
+      const { data, error } = await supabase
+        ?.from('habit_logs')
+        ?.select('*')
+        ?.eq('user_id', userId)
+        ?.gte('log_date', startDate)
+        ?.lte('log_date', endDate);
+
+      if (error) {
+        if (isSchemaError(error)) {
+          console.error('Schema error:', error?.message);
+          throw error;
+        }
+        return { data: null, error };
+      }
+
+      const camelData = toCamelCase(data);
+      return this.calculateWeeklyStats(camelData);
+    } catch (error) {
+      console.error('Get weekly stats error:', error);
+      return { data: null, error };
+    }
+  },
+
+  // Helper function to calculate statistics from habit logs
+  calculateWeeklyStats(logs) {
+    if (!logs || logs?.length === 0) {
+      return { data: [], error: null };
+    }
+
+    // Group by habit title
+    const habitGroups = logs?.reduce((acc, log) => {
+      if (!acc?.[log?.habitTitle]) {
+        acc[log?.habitTitle] = [];
+      }
+      acc?.[log?.habitTitle]?.push(log);
+      return acc;
+    }, {});
+
+    // Calculate stats for each habit
+    const stats = Object.keys(habitGroups)?.map(habitTitle => {
+      const habitLogs = habitGroups?.[habitTitle];
+      const totalDays = habitLogs?.length;
+      const completedDays = habitLogs?.filter(log => log?.completed)?.length;
+      const completionRate = totalDays > 0 ? (completedDays / totalDays) * 100 : 0;
+
+      // Calculate trend (compare first half vs second half)
+      const midpoint = Math.floor(totalDays / 2);
+      const sortedLogs = habitLogs?.sort((a, b) => new Date(a?.logDate) - new Date(b?.logDate));
+      const firstHalf = sortedLogs?.slice(0, midpoint);
+      const secondHalf = sortedLogs?.slice(midpoint);
+      
+      const firstHalfRate = firstHalf?.length > 0 
+        ? (firstHalf?.filter(log => log?.completed)?.length / firstHalf?.length) * 100 
+        : 0;
+      const secondHalfRate = secondHalf?.length > 0 
+        ? (secondHalf?.filter(log => log?.completed)?.length / secondHalf?.length) * 100 
+        : 0;
+      
+      const trend = secondHalfRate - firstHalfRate;
+
+      // Calculate current streak
+      let currentStreak = 0;
+      const sortedDesc = [...sortedLogs]?.reverse();
+      for (const log of sortedDesc) {
+        if (log?.completed) {
+          currentStreak++;
+        } else {
+          break;
+        }
+      }
+
+      return {
+        habitTitle,
+        totalDays,
+        completedDays,
+        completionRate: Math.round(completionRate),
+        trend: Math.round(trend),
+        currentStreak,
+        logs: habitLogs
+      };
+    });
+
+    // Sort by completion rate descending
+    stats?.sort((a, b) => b?.completionRate - a?.completionRate);
+
+    return { data: stats, error: null };
   }
 };
 
@@ -2016,8 +2812,8 @@ export const alignmentTrackingService = {
         let optimalWorkCount = 0;
         activeLogs?.forEach(log => {
           log?.work_sessions?.forEach(session => {
-            const startHour = parseInt(session?.start_time?.split(':')?.[0]);
             const efficiency = parseInt(session?.efficiency);
+            const startHour = parseInt(session?.start_time?.split(':')?.[0]);
             if (efficiency >= 4 && startHour >= 8 && startHour <= 17) {
               optimalWorkCount++;
             }
@@ -2074,144 +2870,6 @@ export const alignmentTrackingService = {
     } catch (error) {
       console.error('Check evolution badges error:', error);
       return { data: { badges: [], newBadge: null }, error };
-    }
-  }
-};
-
-// Rest Day Service
-export const restDayService = {
-  async create(userId, restDayData) {
-    // Demo mode: store in localStorage
-    if (isDemoMode(userId)) {
-      const demoRestDays = JSON.parse(localStorage?.getItem('volta_demo_rest_days') || '[]');
-      const newRestDay = {
-        id: `demo-rest-${Date.now()}`,
-        userId,
-        startDate: restDayData?.startDate,
-        endDate: restDayData?.endDate,
-        reason: restDayData?.reason || 'Rest period',
-        createdAt: new Date()?.toISOString()
-      };
-      demoRestDays?.push(newRestDay);
-      localStorage?.setItem('volta_demo_rest_days', JSON.stringify(demoRestDays));
-      return { data: newRestDay, error: null };
-    }
-
-    try {
-      const { data, error } = await supabase
-        ?.from('rest_days')
-        ?.insert([toSnakeCase({ userId, ...restDayData })])
-        ?.select()
-        ?.single();
-
-      if (error) {
-        if (isSchemaError(error)) {
-          console.error('Schema error:', error?.message);
-          throw error;
-        }
-        return { data: null, error };
-      }
-
-      return { data: toCamelCase(data), error: null };
-    } catch (error) {
-      console.error('Create rest day error:', error);
-      return { data: null, error };
-    }
-  },
-
-  async getAll(userId) {
-    // Demo mode: return from localStorage
-    if (isDemoMode(userId)) {
-      const demoRestDays = JSON.parse(localStorage?.getItem('volta_demo_rest_days') || '[]');
-      return { data: demoRestDays, error: null };
-    }
-
-    try {
-      const { data, error } = await supabase
-        ?.from('rest_days')
-        ?.select('*')
-        ?.eq('user_id', userId)
-        ?.order('start_date', { ascending: false });
-
-      if (error) {
-        if (isSchemaError(error)) {
-          console.error('Schema error:', error?.message);
-          throw error;
-        }
-        return { data: null, error };
-      }
-
-      return { data: toCamelCase(data), error: null };
-    } catch (error) {
-      console.error('Get rest days error:', error);
-      return { data: null, error };
-    }
-  },
-
-  async isRestDay(userId, date) {
-    // Demo mode: check localStorage
-    if (isDemoMode(userId)) {
-      const demoRestDays = JSON.parse(localStorage?.getItem('volta_demo_rest_days') || '[]');
-      return demoRestDays?.some(rd => {
-        const checkDate = new Date(date);
-        const start = new Date(rd?.startDate);
-        const end = new Date(rd?.endDate);
-        return checkDate >= start && checkDate <= end;
-      });
-    }
-
-    try {
-      const { data, error } = await supabase
-        ?.from('rest_days')
-        ?.select('*')
-        ?.eq('user_id', userId)
-        ?.lte('start_date', date)
-        ?.gte('end_date', date)
-        ?.limit(1);
-
-      if (error) {
-        if (isSchemaError(error)) {
-          console.error('Schema error:', error?.message);
-          return false;
-        }
-        return false;
-      }
-
-      return data && data?.length > 0;
-    } catch (error) {
-      console.error('Check rest day error:', error);
-      return false;
-    }
-  },
-
-  async delete(userId, restDayId) {
-    // Demo mode: remove from localStorage
-    if (isDemoMode(userId)) {
-      const demoRestDays = JSON.parse(localStorage?.getItem('volta_demo_rest_days') || '[]');
-      const filtered = demoRestDays?.filter(rd => rd?.id !== restDayId);
-      localStorage?.setItem('volta_demo_rest_days', JSON.stringify(filtered));
-      return { error: null };
-    }
-
-    try {
-      const { error } = await supabase
-        ?.from('rest_days')
-        ?.delete()
-        ?.eq('id', restDayId)
-        ?.eq('user_id', userId);
-
-      if (error) {
-        if (isSchemaError(error)) {
-          console.error('Schema error:', error?.message);
-          throw error;
-        }
-        return { error };
-      }
-
-      return { error: null };
-    } catch (error) {
-      console.error('Delete rest day error:', error);
-      return { error };
     }
   }
 };

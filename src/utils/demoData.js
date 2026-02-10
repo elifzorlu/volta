@@ -12,6 +12,43 @@ const formatTime = (hour, minute = 0) => {
   return `${String(hour)?.padStart(2, '0')}:${String(minute)?.padStart(2, '0')}:00`;
 };
 
+// Demo user profile
+export const demoUserProfile = {
+  id: 'demo-user',
+  email: 'demo@volta.app',
+  fullName: 'Demo User',
+  displayName: 'Demo User',
+  timezone: 'America/Los_Angeles',
+  role: 'user',
+  evolutionBadges: ['first_week', 'consistency_3'],
+  createdAt: new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000)?.toISOString()
+};
+
+// Check if demo mode should be active
+export const isDemoMode = (userId) => {
+  // Force demo mode if localStorage flag is set
+  if (typeof window !== 'undefined') {
+    const forceDemoMode = localStorage.getItem('volta_force_demo_mode');
+    if (forceDemoMode === 'true') return true;
+  }
+  // Otherwise, demo mode if no user or user is demo user
+  return !userId || userId === 'demo-user';
+};
+
+// Check if user has any data
+export const userHasData = async (supabase, userId) => {
+  if (!userId || isDemoMode(userId)) return false;
+  
+  try {
+    const { data: logs } = await supabase?.from('daily_logs')?.select('id')?.eq('user_id', userId)?.limit(1);
+    
+    return logs && logs?.length > 0;
+  } catch (error) {
+    console.error('Error checking user data:', error);
+    return false;
+  }
+};
+
 // Generate demo daily logs for the past 14 days
 export const demoDailyLogs = Array.from({ length: 14 }, (_, i) => {
   const daysAgo = i;
@@ -217,6 +254,81 @@ export const demoRecommendations = {
   }
 };
 
+// Demo ML Predictions
+export const demoMLPredictions = {
+  decisionFocused: [
+    {
+      type: 'creative_timing',
+      action: 'Do 20 min creative work at 9:10 AM',
+      outcome: 'your day score is +7 on average',
+      confidence: 'high',
+      sampleSize: 18,
+      explanation: 'Based on 18 similar morning sessions, your productivity score averages 86 vs 79 at other times.'
+    },
+    {
+      type: 'caffeine_timing',
+      action: 'Avoid caffeine after 2pm',
+      outcome: 'tomorrow\'s score is -12 with late caffeine',
+      confidence: 'medium',
+      sampleSize: 12,
+      explanation: 'Based on 12 days with high/late caffeine, next-day scores average 68 vs 80 with normal timing.'
+    },
+    {
+      type: 'sleep_optimization',
+      action: 'Sleep 7-8 hours instead of <7',
+      outcome: 'your score improves by +15 on average',
+      confidence: 'high',
+      sampleSize: 22,
+      explanation: 'Based on 22 days with 7-8h sleep, scores average 84 vs 69 with less sleep.'
+    }
+  ],
+  counterfactual: [
+    {
+      type: 'sleep',
+      title: 'What if you sleep 6h vs 7h vs 8h?',
+      options: {
+        '6h': { avgScore: 68, sampleSize: 8 },
+        '7h': { avgScore: 79, sampleSize: 12 },
+        '8h': { avgScore: 86, sampleSize: 15 }
+      },
+      recommendation: '8h',
+      confidence: 'high'
+    },
+    {
+      type: 'caffeine',
+      title: 'What if caffeine is 0mg / 150mg / 300mg?',
+      options: {
+        '0mg': { avgScore: 72, sampleSize: 6 },
+        '150mg': { avgScore: 82, sampleSize: 14 },
+        '300mg': { avgScore: 75, sampleSize: 9 }
+      },
+      recommendation: '150mg',
+      confidence: 'high'
+    },
+    {
+      type: 'timing',
+      title: 'What if you study in the morning vs afternoon vs evening?',
+      options: {
+        'morning': { avgScore: 85, sampleSize: 16 },
+        'afternoon': { avgScore: 78, sampleSize: 11 },
+        'evening': { avgScore: 71, sampleSize: 8 }
+      },
+      recommendation: 'morning',
+      confidence: 'medium'
+    }
+  ],
+  dataSufficiency: {
+    overall: 'good',
+    byFeature: {
+      sleep: 'sufficient',
+      caffeine: 'sufficient',
+      timing: 'sufficient',
+      duration: 'sufficient'
+    },
+    recommendations: []
+  }
+};
+
 // Demo productivity scores
 export const demoProductivityScores = demoDailyLogs?.map((log, index) => {
   const sessions = demoWorkSessions?.filter(s => s?.sessionDate === log?.logDate);
@@ -338,11 +450,6 @@ export const demoAdvancedInsights = {
     },
     insight: 'Your morning sessions show highest efficiency (avg 4.2/5). Peak hours: 8:00 (4.5/5), 9:00 (4.3/5), 10:00 (4.2/5).'
   }
-};
-
-// Helper to check if user is in demo mode
-export const isDemoMode = (user) => {
-  return !user || user === null;
 };
 
 // Get today's demo data

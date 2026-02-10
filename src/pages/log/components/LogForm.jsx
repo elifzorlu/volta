@@ -6,6 +6,7 @@ import Button from '../../../components/ui/Button';
 import Icon from '../../../components/AppIcon';
 import { useAuth } from '../../../contexts/AuthContext';
 import { dailyLogsService, customCategoriesService } from '../../../services/voltaService';
+import { trackHabitEvent, trackFormSubmit } from '../../../utils/analytics';
 
 const LogForm = () => {
   const navigate = useNavigate();
@@ -228,6 +229,20 @@ const LogForm = () => {
         setIsSubmitting(false);
         return;
       }
+
+      // Track habit logging event
+      trackHabitEvent('logged', {
+        session_count: sessions?.length,
+        has_notes: !!dailyContext?.notes,
+        sleep_hours: dailyContext?.sleepHours,
+        user_type: user?.id ? 'authenticated' : 'demo'
+      });
+
+      // Track form submission
+      trackFormSubmit('daily_log_form', {
+        success: true,
+        session_count: sessions?.length
+      });
 
       // Success - navigate to today page
       navigate('/today');
