@@ -19,7 +19,7 @@ def time_split(df, target_col="focus"):
     X = df.drop(columns=[target_col])
 
     if "date" in X.columns:
-    X = X.drop(columns=["date"])
+     X = X.drop(columns=["date"])
 
     y = df[target_col]
 
