@@ -40,7 +40,7 @@ def train():
 
     X_train, X_test, y_train, y_test = time_split(df)
 
-    // fill the NaNs
+    # fill the NaNs
     imputer = SimpleImputer(strategy="mean")
     X_train = imputer.fit_transform(X_train)
     X_test = imputer.transform(X_test)
