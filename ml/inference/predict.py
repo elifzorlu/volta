@@ -12,6 +12,11 @@ def predict_latest():
     latest = df.sort_values("date").iloc[-1:]
 
     X = latest.drop(columns=["focus"])
+
+    X = latest.drop(columns=["focus"])
+    if "date" in X.columns:
+     X = X.drop(columns=["date"])
+
     pred = model.predict(X)
 
     print(f"Predicted next-day focus: {pred[0]:.2f}")
