@@ -17,7 +17,13 @@ def time_split(df, target_col="focus"):
     df = df.sort_values("date")
 
     X = df.drop(columns=[target_col])
+
+    if "date" in X.columns:
+    X = X.drop(columns=["date"])
+
     y = df[target_col]
+
+   
 
     split_index = int(len(df) * 0.8)
 
