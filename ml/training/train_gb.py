@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import train_test_split
+from sklearn.impute import SimpleImputer
 import joblib
 import os
 
@@ -39,6 +40,11 @@ def train():
 
     X_train, X_test, y_train, y_test = time_split(df)
 
+    // fill the NaNs
+    imputer = SimpleImputer(strategy="mean")
+    X_train = imputer.fit_transform(X_train)
+    X_test = imputer.transform(X_test)
+
     model = GradientBoostingRegressor(
         n_estimators=200,
         learning_rate=0.05,
@@ -54,7 +60,7 @@ def train():
     print(f"Test MAE: {mae:.4f}")
 
     os.makedirs("ml/artifacts", exist_ok=True)
-    joblib.dump(model, MODEL_PATH)
+    joblib.dump((model, imputer), MODEL_PATH)
     print("Model saved.")
 
 if __name__ == "__main__":
