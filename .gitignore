@@ -9,4 +9,6 @@ vite.config.*s.*
 ml/data/raw/
 ml/artifacts/
 *.joblib
+.env
+.env.*
 

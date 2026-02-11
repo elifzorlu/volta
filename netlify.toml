@@ -1,0 +1,8 @@
+[build]
+  command = "npm run build"
+  publish = "build"
+
+[build.environment]
+  # Supabase URL and anon key are public client-side values (protected by RLS)
+  # and are intentionally embedded in the Vite bundle via VITE_ prefix.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_ANON_KEY,VITE_SUPABASE_URL"
