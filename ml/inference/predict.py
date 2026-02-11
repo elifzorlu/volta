@@ -6,7 +6,8 @@ MODEL_PATH = "ml/artifacts/gb_model.joblib"
 DATA_PATH = "ml/data/processed.csv"
 
 def predict_latest():
-    model = joblib.load(MODEL_PATH)
+    
+    model, imputer = joblib.load(MODEL_PATH)
 
     df = pd.read_csv(DATA_PATH)
     latest = df.sort_values("date").iloc[-1:]
@@ -16,6 +17,8 @@ def predict_latest():
     X = latest.drop(columns=["focus"])
     if "date" in X.columns:
      X = X.drop(columns=["date"])
+
+    X = imputer.transform(X)
 
     pred = model.predict(X)
 
