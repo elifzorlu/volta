@@ -4,6 +4,5 @@ scikit-learn
 joblib
 fastapi==0.115.0
 uvicorn==0.30.0
-torch==2.10.0
-numpy==2.4.2
+torch==2.1.0+cpu --extra-index-url https://download.pytorch.org/whl/cpunumpy==2.4.2
 pydantic==2.9.0
