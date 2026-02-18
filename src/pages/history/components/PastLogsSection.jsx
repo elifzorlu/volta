@@ -1,6 +1,10 @@
-import { Calendar, Coffee, Zap, Clock, TrendingUp } from 'lucide-react';
+import { Calendar, Coffee, Zap, Clock, TrendingUp, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import Button from '../../../components/ui/Button';
 
 const PastLogsSection = ({ logs }) => {
+  const navigate = useNavigate();
+
   if (!logs || logs?.length === 0) {
     return (
       <div className="mt-8 p-8 bg-card border border-border rounded-lg text-center">
@@ -28,10 +32,19 @@ const PastLogsSection = ({ logs }) => {
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
+  const calculateDuration = (startTime, endTime) => {
+    if (!startTime || !endTime) return 0;
+    const [startHours, startMinutes] = startTime?.split(':')?.map(Number);
+    const [endHours, endMinutes] = endTime?.split(':')?.map(Number);
+    const startTotalMinutes = startHours * 60 + startMinutes;
+    const endTotalMinutes = endHours * 60 + endMinutes;
+    return endTotalMinutes - startTotalMinutes;
+  };
+
   const calculateTotalFocusTime = (sessions) => {
     if (!sessions || sessions?.length === 0) return 0;
     return sessions?.reduce((total, session) => {
-      const duration = session?.duration || 0;
+      const duration = calculateDuration(session?.startTime, session?.endTime);
       return total + duration;
     }, 0);
   };
@@ -40,6 +53,10 @@ const PastLogsSection = ({ logs }) => {
     if (!sessions || sessions?.length === 0) return 0;
     const totalEfficiency = sessions?.reduce((sum, session) => sum + (session?.efficiency || 0), 0);
     return (totalEfficiency / sessions?.length)?.toFixed(1);
+  };
+
+  const handleAddSession = (logDate) => {
+    navigate(`/log?date=${logDate}`);
   };
 
   return (
@@ -62,11 +79,22 @@ const PastLogsSection = ({ logs }) => {
               className="bg-card border border-border rounded-lg p-4 md:p-6 hover:border-primary/50 transition-colors"
             >
               {/* Date Header */}
-              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
-                <Calendar className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-semibold text-foreground">
-                  {formatDate(log?.logDate)}
-                </h3>
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  <h3 className="text-lg font-semibold text-foreground">
+                    {formatDate(log?.logDate)}
+                  </h3>
+                </div>
+                <Button
+                  onClick={() => handleAddSession(log?.logDate)}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Session
+                </Button>
               </div>
 
               {/* Daily Context Grid */}
@@ -79,13 +107,11 @@ const PastLogsSection = ({ logs }) => {
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Sleep</p>
                     <p className="text-sm font-medium text-foreground">
-                      {log?.sleepLength ? `${log?.sleepLength} hrs` : 'Not logged'}
+                      {log?.sleepHours ? `${log?.sleepHours} hrs` : 'Not logged'}
                     </p>
-                    {log?.wakeUpTime && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Woke at {formatTime(log?.wakeUpTime)}
-                      </p>
-                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {log?.sleepQuality ? `Quality: ${log?.sleepQuality}` : ''}
+                    </p>
                   </div>
                 </div>
 
@@ -112,7 +138,7 @@ const PastLogsSection = ({ logs }) => {
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Energy Level</p>
                     <p className="text-sm font-medium text-foreground">
-                      {log?.energyLevel ? `${log?.energyLevel}/5` : 'Not logged'}
+                      {log?.energyLevel ? log?.energyLevel : 'Not logged'}
                     </p>
                   </div>
                 </div>
@@ -145,29 +171,32 @@ const PastLogsSection = ({ logs }) => {
                     Work Sessions ({log?.workSessions?.length})
                   </p>
                   <div className="space-y-2">
-                    {log?.workSessions?.map((session, index) => (
-                      <div 
-                        key={session?.id || index} 
-                        className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
-                      >
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-foreground">
-                            {session?.category || 'Work Session'}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {formatTime(session?.startTime)} - {formatTime(session?.endTime)}
-                          </p>
+                    {log?.workSessions?.map((session, index) => {
+                      const sessionDuration = calculateDuration(session?.startTime, session?.endTime);
+                      return (
+                        <div 
+                          key={session?.id || index} 
+                          className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                        >
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-foreground">
+                              {session?.category || 'Work Session'}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {formatTime(session?.startTime)} - {formatTime(session?.endTime)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-foreground">
+                              {sessionDuration} min
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Efficiency: {session?.efficiency || 0}/5
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-foreground">
-                            {session?.duration} min
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Efficiency: {session?.efficiency || 0}/5
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

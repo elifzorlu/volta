@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
 import Button from '../../../components/ui/Button';
@@ -10,6 +10,7 @@ import { trackHabitEvent, trackFormSubmit } from '../../../utils/analytics';
 
 const LogForm = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, isDemoMode } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date()?.toISOString()?.split('T')?.[0]);
   const [dailyContext, setDailyContext] = useState({
@@ -39,6 +40,14 @@ const LogForm = () => {
   useEffect(() => {
     loadCustomCategories();
   }, [user?.id]);
+
+  // Check for date parameter in URL
+  useEffect(() => {
+    const dateParam = searchParams?.get('date');
+    if (dateParam) {
+      setSelectedDate(dateParam);
+    }
+  }, [searchParams]);
 
   // Load existing log data when date changes
   useEffect(() => {
