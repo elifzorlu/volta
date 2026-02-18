@@ -92,7 +92,7 @@ const Today = () => {
           category: session?.category,
           startTime: session?.startTime,
           endTime: session?.endTime,
-          efficiency: session?.efficiency?.toString(),
+          efficiency: session?.efficiency,
           felt: session?.felt
         })) || [];
 

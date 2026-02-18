@@ -2090,7 +2090,10 @@ export const productivityScoreCalculator = {
     score += energyScore;
 
     // Work session efficiency (0-35)
-    const avgEfficiency = workSessions?.reduce((sum, s) => sum + (s?.efficiency || 3), 0) / workSessions?.length;
+    const avgEfficiency = workSessions?.reduce((sum, s) => {
+      const efficiency = typeof s?.efficiency === 'string' ? parseFloat(s?.efficiency) : (s?.efficiency || 3);
+      return sum + efficiency;
+    }, 0) / workSessions?.length;
     const efficiencyScore = (avgEfficiency / 5) * 35;
     score += efficiencyScore;
 
