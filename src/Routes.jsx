@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes as RouterRoutes, Route } from "react-router-dom";
+import { BrowserRouter, Routes as RouterRoutes, Route, Navigate } from "react-router-dom";
 import ScrollToTop from "components/ScrollToTop";
 import ErrorBoundary from "components/ErrorBoundary";
 import NavigationContainer from "components/ui/NavigationContainer";
@@ -18,10 +18,62 @@ import Settings from './pages/settings';
 import GoalSetting from './pages/goal-setting';
 import Predictions from './pages/predictions';
 import useGoogleAnalytics from './hooks/useGoogleAnalytics';
+import { useAuth } from './contexts/AuthContext';
 
 // Wrapper component to use hooks inside BrowserRouter context
 const AnalyticsWrapper = ({ children }) => {
   useGoogleAnalytics();
+  return children;
+};
+
+// Protected route wrapper
+const ProtectedRoute = ({ children }) => {
+  const { user, loading, isDemoMode } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4">
+            <div className="w-2 h-2 bg-[#10b981] rounded-full animate-pulse mx-auto"></div>
+          </div>
+          <p className="text-zinc-600 text-sm tracking-wide">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Allow access in demo mode or if authenticated
+  if (!user && !isDemoMode) {
+    return <Navigate to="/auth" replace />;
+  }
+  
+  return children;
+};
+
+// Auth route wrapper (redirects authenticated users away from auth page)
+const AuthRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4">
+            <div className="w-2 h-2 bg-[#10b981] rounded-full animate-pulse mx-auto"></div>
+          </div>
+          <p className="text-zinc-600 text-sm tracking-wide">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // If user is authenticated, redirect to today page
+  if (user) {
+    const onboardingComplete = localStorage?.getItem('volta_onboarding_complete');
+    return <Navigate to={onboardingComplete ? '/today' : '/personal-setup'} replace />;
+  }
+  
   return children;
 };
 
@@ -51,22 +103,26 @@ const Routes = () => {
         <ErrorBoundary>
           <ScrollToTop />
           <RouterRoutes>
-            {/* Onboarding routes without navigation */}
+            {/* Public onboarding routes */}
             <Route path="/welcome" element={<Welcome />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/personal-setup" element={<PersonalSetup />} />
             <Route path="/demo-introduction" element={<DemoIntroduction />} />
+            
+            {/* Auth route - redirects if already authenticated */}
+            <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
+            
+            {/* Protected onboarding route */}
+            <Route path="/personal-setup" element={<ProtectedRoute><PersonalSetup /></ProtectedRoute>} />
             
             {/* Root route with conditional rendering */}
             <Route path="/" element={getDefaultRoute()}>
               {onboardingComplete && hasCheckedInToday && <Route index element={<Today />} />}
             </Route>
             
-            {/* Ritual page without navigation */}
-            <Route path="/ritual" element={<BrainCheckInRitual />} />
+            {/* Ritual page - protected */}
+            <Route path="/ritual" element={<ProtectedRoute><BrainCheckInRitual /></ProtectedRoute>} />
             
-            {/* All other pages with navigation */}
-            <Route element={<NavigationContainer />}>
+            {/* All other pages with navigation - protected */}
+            <Route element={<ProtectedRoute><NavigationContainer /></ProtectedRoute>}>
               <Route path="/today" element={<Today />} />
               <Route path="/history" element={<History />} />
               <Route path="/log" element={<Log />} />

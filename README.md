@@ -1,172 +1,107 @@
-# Volta ⚡  
-**Personal Productivity Intelligence — built by a machine learning student**
+# React
 
-Volta is an ML-driven productivity system that learns patterns from behavioral data and turns them into decision-focused insights.
+A modern React-based project utilizing the latest frontend technologies and tools for building responsive web applications.
 
-Not a dashboard.  
-Not a habit tracker.  
-Not “AI for vibes.”
+## 🚀 Features
 
-Volta is about answering questions like:
+- **React 18** - React version with improved rendering and concurrent features
+- **Vite** - Lightning-fast build tool and development server
+- **Redux Toolkit** - State management with simplified Redux setup
+- **TailwindCSS** - Utility-first CSS framework with extensive customization
+- **React Router v6** - Declarative routing for React applications
+- **Data Visualization** - Integrated D3.js and Recharts for powerful data visualization
+- **Form Management** - React Hook Form for efficient form handling
+- **Animation** - Framer Motion for smooth UI animations
+- **Testing** - Jest and React Testing Library setup
 
-- When am I actually most effective?
-- Does sleeping 6h vs 8h change my next-day output?
-- Is caffeine helping or hurting deep work?
-- What would happen if I shifted my schedule?
+## 📋 Prerequisites
 
-The goal is to move from **tracking → modeling → decision intelligence.**
+- Node.js (v14.x or higher)
+- npm or yarn
 
----
+## 🛠️ Installation
 
-## 🌐 Live Demo
+1. Install dependencies:
+   ```bash
+   npm install
+   # or
+   yarn install
+   ```
+   
+2. Start the development server:
+   ```bash
+   npm start
+   # or
+   yarn start
+   ```
 
-https://volta-productivity.com  
-
-*(Front-end prototype currently live)*
-
----
-
-## 🚧 Current Stage
-
-Volta is currently in **Stage 1 – Product Foundation → Transitioning to ML Backend.**
-
-### ✅ Implemented
-- Front-end web app (React + Vite)
-- Manual productivity logging interface
-- Structured behavioral data schema
-- Deployment (Netlify + custom domain)
-- Repository structure prepared for backend integration
-
-### 🔄 In Progress
-- Persistent user data storage (Supabase / DB)
-- Backend API (FastAPI)
-- Feature engineering pipeline
-- First baseline trainable model
-
-Volta is moving from **UI prototype → ML system.**
-
----
-
-## 🧠 Technical Direction
-
-### Core Modeling Idea
-
-Daily behavioral metrics are modeled as time-series sequences.
-
-**Inputs (per day):**
-- Sleep duration
-- Caffeine intake
-- Study/work duration
-- Screen time
-- Schedule distribution
-- (Future: energy score, context tags, biometrics)
-
-**Outputs:**
-- Predicted productivity score
-- Confidence level
-- Counterfactual insights  
-  (“If sleep +1h → expected +X% productivity”)
-
----
-
-## 🏗 Planned Architecture
-
-### Frontend
-- React + Vite
-- Minimal dark UI
-- Decision-focused UX (not analytics-heavy dashboards)
-
-### Backend (In Progress)
-- Python (FastAPI)
-- PyTorch LSTM time-series model
-- ONNX export for optimized inference
-- CUDA acceleration for training experiments
-
-### Data
-- User-specific time-series modeling
-- Rolling window sequence training
-- Feature scaling + normalization pipeline
-
----
-
-## 🔬 Machine Learning Roadmap
-
-### Phase 1 – Baseline Modeling
-- Train LSTM on synthetic + self-logged data
-- Evaluate MAE / MSE for next-day productivity prediction
-- Add uncertainty estimation (sample size + variance aware)
-
-### Phase 2 – Personalization
-- Per-user fine-tuning
-- Few-shot adaptation
-- Confidence scoring calibration
-
-### Phase 3 – Counterfactual Engine
-- Simulate alternate sleep/caffeine schedules
-- Generate “what-if” projections
-- Show prediction confidence intervals
-
-### Phase 4 – Performance Engineering
-- Export model to ONNX
-- Benchmark inference latency
-- Compare CPU vs GPU inference cost
-- Optimize throughput
-
-This project is intentionally designed as an **end-to-end ML systems project**, not just a trained model.
-
----
-
-## 📈 Long-Term Vision
-
-Volta evolves into:
-
-- A personalized decision engine
-- A deployed ML system with measurable latency benchmarks
-- A production-style time-series modeling experiment
-- A portfolio-level ML systems case study
-
----
-
-## 📌 Concrete Next Steps
-
-- [ ] Implement FastAPI backend service
-- [ ] Connect persistent database
-- [ ] Build model training pipeline
-- [ ] Create synthetic dataset generator
-- [ ] Add evaluation metrics dashboard
-- [ ] Implement ONNX export + benchmark script
-- [ ] Add uncertainty calibration module
-- [ ] Add model versioning system
-
----
-## 📂 Repository Structure
+## 📁 Project Structure
 
 ```
-volta/
-│
-├── frontend/          # React + Vite web app
-├── backend/
-│   ├── api/           # FastAPI routes
-│   ├── models/        # PyTorch model definitions
-│   ├── training/      # Training pipeline scripts
-│   ├── inference/     # Inference + ONNX export
-│   └── benchmarks/    # Latency & performance tests
-│
-├── data/              # Datasets (synthetic + user logs)
-├── experiments/       # Model experiments & notebooks
-└── README.md
+react_app/
+├── public/             # Static assets
+├── src/
+│   ├── components/     # Reusable UI components
+│   ├── pages/          # Page components
+│   ├── styles/         # Global styles and Tailwind configuration
+│   ├── App.jsx         # Main application component
+│   ├── Routes.jsx      # Application routes
+│   └── index.jsx       # Application entry point
+├── .env                # Environment variables
+├── index.html          # HTML template
+├── package.json        # Project dependencies and scripts
+├── tailwind.config.js  # Tailwind CSS configuration
+└── vite.config.js      # Vite configuration
 ```
 
----
+## 🧩 Adding Routes
 
-## 👩‍💻 About
+To add new routes to the application, update the `Routes.jsx` file:
 
-Built by a computer science student focused on:
+```jsx
+import { useRoutes } from "react-router-dom";
+import HomePage from "pages/HomePage";
+import AboutPage from "pages/AboutPage";
 
-- Machine learning systems
-- Performance-aware model deployment
-- Time-series modeling
-- Turning research ideas into deployed systems
+const ProjectRoutes = () => {
+  let element = useRoutes([
+    { path: "/", element: <HomePage /> },
+    { path: "/about", element: <AboutPage /> },
+    // Add more routes as needed
+  ]);
 
-Volta is both a product and an evolving ML engineering experiment.
+  return element;
+};
+```
 
+## 🎨 Styling
+
+This project uses Tailwind CSS for styling. The configuration includes:
+
+- Forms plugin for form styling
+- Typography plugin for text styling
+- Aspect ratio plugin for responsive elements
+- Container queries for component-specific responsive design
+- Fluid typography for responsive text
+- Animation utilities
+
+## 📱 Responsive Design
+
+The app is built with responsive design using Tailwind CSS breakpoints.
+
+
+## 📦 Deployment
+
+Build the application for production:
+
+```bash
+npm run build
+```
+
+## 🙏 Acknowledgments
+
+- Built with [Rocket.new](https://rocket.new)
+- Powered by React and Vite
+- Styled with Tailwind CSS
+
+Built with ❤️ on Rocket.new

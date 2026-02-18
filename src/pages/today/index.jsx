@@ -308,7 +308,7 @@ const Today = () => {
       <div className="max-w-3xl mx-auto px-4 md:px-6 lg:px-8 py-8 md:py-10 lg:py-12">
         {/* 1. Creator Signature - Subtle at top */}
         <div className="mb-8 text-center opacity-40">
-          <p className="text-xs text-zinc-500 tracking-wide">Designed by a Machine Learning Student. — Volta™
+          <p className="text-xs text-zinc-500 tracking-wide">
 
           </p>
         </div>
