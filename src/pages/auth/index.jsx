@@ -107,7 +107,7 @@ const Auth = () => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4 mb-6">
+        <form onSubmit={handleSubmit} className="space-y-5 mb-6">
           <Input
             type="email"
             label="Email"
@@ -152,13 +152,15 @@ const Auth = () => {
             </div>
           )}
 
-          <Button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[#39FF88] hover:bg-[#2ee077] text-black font-medium py-3 transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-          >
-            {loading ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
-          </Button>
+          <div className="pt-2">
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#39FF88] hover:bg-[#2ee077] text-black font-medium py-3 transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              {loading ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
+            </Button>
+          </div>
         </form>
 
         {/* Toggle Mode */}
