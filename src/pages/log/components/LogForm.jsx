@@ -210,6 +210,13 @@ const LogForm = () => {
     const hasExistingContext = dailyContext?.sleepHours || dailyContext?.sleepQuality || 
                                dailyContext?.caffeineTotal || dailyContext?.energyLevel;
 
+    console.log('[LogForm] Validation check:', {
+      hasExistingContext,
+      dailyContext,
+      selectedDate,
+      sessionsCount: sessions?.length
+    });
+
     // Only validate daily context if it's a new log (no existing context)
     if (!hasExistingContext) {
       // Validate daily context for new logs
@@ -253,6 +260,7 @@ const LogForm = () => {
       }
     });
 
+    console.log('[LogForm] Validation errors:', newErrors);
     setErrors(newErrors);
     return Object.keys(newErrors)?.length === 0;
   };
@@ -260,13 +268,23 @@ const LogForm = () => {
   const handleSubmit = async (e) => {
     e?.preventDefault();
 
+    console.log('[LogForm] Submit initiated:', {
+      selectedDate,
+      dailyContext,
+      sessions,
+      userId: user?.id,
+      isDemoMode
+    });
+
     if (!validateForm()) {
+      console.error('[LogForm] Validation failed');
       return;
     }
 
     // Ensure user is loaded before submission
     if (!isDemoMode && !user?.id) {
       setErrors({ submit: 'User session not loaded. Please refresh and try again.' });
+      console.error('[LogForm] No user ID found');
       return;
     }
 
@@ -275,6 +293,13 @@ const LogForm = () => {
     try {
       const userId = isDemoMode ? null : user?.id;
       
+      console.log('[LogForm] Calling dailyLogsService.create with:', {
+        userId,
+        dailyContext,
+        sessions,
+        selectedDate
+      });
+
       const { data, error } = await dailyLogsService?.create(
         userId,
         dailyContext,
@@ -282,11 +307,16 @@ const LogForm = () => {
         selectedDate
       );
 
+      console.log('[LogForm] Service response:', { data, error });
+
       if (error) {
+        console.error('[LogForm] Save error:', error);
         setErrors({ submit: error?.message || 'Failed to save log. Please try again.' });
         setIsSubmitting(false);
         return;
       }
+
+      console.log('[LogForm] Log saved successfully:', data);
 
       // Track habit logging event
       trackHabitEvent('logged', {
@@ -306,7 +336,7 @@ const LogForm = () => {
       // Success - navigate to today page
       navigate('/today');
     } catch (error) {
-      console.error('Log submission error:', error);
+      console.error('[LogForm] Log submission error:', error);
       setErrors({ submit: 'An unexpected error occurred. Please try again.' });
       setIsSubmitting(false);
     }

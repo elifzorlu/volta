@@ -268,8 +268,16 @@ export const customCategoriesService = {
 // Daily Logs Service
 export const dailyLogsService = {
   async create(userId, dailyContext, sessions, logDate = new Date()?.toISOString()?.split('T')?.[0]) {
+    console.log('[dailyLogsService.create] Called with:', {
+      userId,
+      dailyContext,
+      sessions,
+      logDate
+    });
+
     // Demo mode: return mock success
     if (isDemoMode(userId)) {
+      console.log('[dailyLogsService.create] Demo mode - returning mock data');
       return {
         data: {
           dailyLog: getTodayDemoData()?.dailyLog,
@@ -281,6 +289,7 @@ export const dailyLogsService = {
 
     try {
       // Check if a log already exists for this date
+      console.log('[dailyLogsService.create] Checking for existing log...');
       const { data: existingLog, error: checkError } = await supabase
         ?.from('daily_logs')
         ?.select('*')
@@ -288,9 +297,12 @@ export const dailyLogsService = {
         ?.eq('log_date', logDate)
         ?.single();
 
+      console.log('[dailyLogsService.create] Existing log check:', { existingLog, checkError });
+
       let dailyLog;
 
       if (existingLog) {
+        console.log('[dailyLogsService.create] Log exists - updating...');
         // Log exists - only update if new context values are provided
         const updateData = {
           user_id: userId,
@@ -317,6 +329,8 @@ export const dailyLogsService = {
           updateData.notes = dailyContext?.notes;
         }
 
+        console.log('[dailyLogsService.create] Update data:', updateData);
+
         const { data: updatedLog, error: updateError } = await supabase
           ?.from('daily_logs')
           ?.update(updateData)
@@ -324,6 +338,8 @@ export const dailyLogsService = {
           ?.eq('log_date', logDate)
           ?.select()
           ?.single();
+
+        console.log('[dailyLogsService.create] Update result:', { updatedLog, updateError });
 
         if (updateError) {
           if (isSchemaError(updateError)) {
@@ -335,21 +351,28 @@ export const dailyLogsService = {
 
         dailyLog = updatedLog;
       } else {
+        console.log('[dailyLogsService.create] No existing log - creating new...');
         // No existing log - create new one with all required fields
+        const insertData = {
+          user_id: userId,
+          log_date: logDate,
+          sleep_hours: parseFloat(dailyContext?.sleepHours),
+          sleep_quality: dailyContext?.sleepQuality,
+          caffeine_total: parseInt(dailyContext?.caffeineTotal),
+          energy_level: dailyContext?.energyLevel,
+          mood_tone: dailyContext?.moodTone || null,
+          notes: dailyContext?.notes || null
+        };
+
+        console.log('[dailyLogsService.create] Insert data:', insertData);
+
         const { data: newLog, error: logError } = await supabase
           ?.from('daily_logs')
-          ?.insert({
-            user_id: userId,
-            log_date: logDate,
-            sleep_hours: parseFloat(dailyContext?.sleepHours),
-            sleep_quality: dailyContext?.sleepQuality,
-            caffeine_total: parseInt(dailyContext?.caffeineTotal),
-            energy_level: dailyContext?.energyLevel,
-            mood_tone: dailyContext?.moodTone || null,
-            notes: dailyContext?.notes || null
-          })
+          ?.insert(insertData)
           ?.select()
           ?.single();
+
+        console.log('[dailyLogsService.create] Insert result:', { newLog, logError });
 
         if (logError) {
           if (isSchemaError(logError)) {
@@ -363,6 +386,7 @@ export const dailyLogsService = {
       }
 
       // Insert new work sessions (append to existing ones, don't delete)
+      console.log('[dailyLogsService.create] Inserting work sessions...');
       const sessionsData = sessions?.map(session => ({
         user_id: userId,
         daily_log_id: dailyLog?.id,
@@ -375,10 +399,14 @@ export const dailyLogsService = {
         session_date: logDate
       }));
 
+      console.log('[dailyLogsService.create] Sessions data to insert:', sessionsData);
+
       const { data: workSessions, error: sessionsError } = await supabase
         ?.from('work_sessions')
         ?.insert(sessionsData)
         ?.select();
+
+      console.log('[dailyLogsService.create] Sessions insert result:', { workSessions, sessionsError });
 
       if (sessionsError) {
         if (isSchemaError(sessionsError)) {
@@ -388,15 +416,18 @@ export const dailyLogsService = {
         return { data: null, error: sessionsError };
       }
 
-      return { 
+      const result = { 
         data: { 
           dailyLog: toCamelCase(dailyLog), 
           workSessions: toCamelCase(workSessions) 
         }, 
         error: null 
       };
+
+      console.log('[dailyLogsService.create] Success! Returning:', result);
+      return result;
     } catch (error) {
-      console.error('Daily log creation error:', error);
+      console.error('[dailyLogsService.create] Caught error:', error);
       throw error;
     }
   },

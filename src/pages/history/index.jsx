@@ -125,19 +125,24 @@ const History = () => {
       setLoading(true);
       const { startDate, endDate } = getDateRange(activeTimeframe);
       
+      console.log('[History] Loading data for range:', { startDate, endDate, userId: user?.id });
+
       const { data: logs, error: logsError } = await dailyLogsService?.getByDateRange(
         user?.id || null,
         startDate,
         endDate
       );
 
+      console.log('[History] Loaded logs:', { logs, logsError, count: logs?.length });
+
       if (logsError) {
-        console.error('Error loading logs:', logsError);
+        console.error('[History] Error loading logs:', logsError);
         setError('Failed to load productivity history');
         return;
       }
 
       if (logs && logs?.length > 0) {
+        console.log('[History] Processing logs data...');
         // Format chart data
         const formattedData = logs?.map(log => {
           const date = new Date(log?.logDate);
@@ -151,16 +156,26 @@ const History = () => {
             dateLabel = date?.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
           }
 
+          const score = calculateScoreFromSessions(log?.workSessions);
+          console.log('[History] Log entry:', {
+            date: log?.logDate,
+            dateLabel,
+            workSessionsCount: log?.workSessions?.length,
+            score
+          });
+
           return {
             date: dateLabel,
-            score: calculateScoreFromSessions(log?.workSessions)
+            score
           };
         })?.reverse();
 
+        console.log('[History] Formatted chart data:', formattedData);
         setChartData(formattedData);
         setSummaryStats(calculateStats(logs));
         setTrendInsight(calculateTrend(logs, activeTimeframe));
       } else {
+        console.log('[History] No logs found');
         setChartData([]);
         setSummaryStats({ average: 0, highest: 0, lowest: 0, totalDays: 0 });
         setTrendInsight({
@@ -170,7 +185,7 @@ const History = () => {
         });
       }
     } catch (err) {
-      console.error('Load history data error:', err);
+      console.error('[History] Load history data error:', err);
       setError('An unexpected error occurred');
     } finally {
       setLoading(false);
