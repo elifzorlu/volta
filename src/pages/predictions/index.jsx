@@ -9,38 +9,36 @@ import { decisionFocusedPredictions, counterfactualSimulator, uncertaintyCalibra
 import { mlBackendApi } from '../../services/mlApiService';
 
 const Predictions = () => {
-  const { user, isDemoMode } = useAuth();
-  const [timeframe, setTimeframe] = useState('overall');
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [mlPredictions, setMlPredictions] = useState({ 
-    decisions: [], 
-    scenarios: [], 
-    dataSufficiency: null 
+  const [mlPredictions, setMlPredictions] = useState({
+    decisions: [],
+    scenarios: [],
+    dataSufficiency: null
   });
+
   const [apiPrediction, setApiPrediction] = useState(null);
   const [apiError, setApiError] = useState(null);
   const [apiLoading, setApiLoading] = useState(false);
 
   useEffect(() => {
     loadPredictionData();
-  }, [user, isDemoMode, timeframe]);
+  }, [user]);
 
   const loadPredictionData = async () => {
     try {
       setLoading(true);
-      
-      // Load recent logs for ML predictions
-      const { data: recentLogs, error: recentError } = await dailyLogsService?.getRecent(user?.id || null, 14);
-      
-      if (!recentError && recentLogs) {
-        // Collect all work sessions
-        const workSessions = recentLogs?.flatMap(log => log?.workSessions || []);
-        
-        // Generate local ML predictions (existing functionality)
+
+      const { data: recentLogs, error } =
+        await dailyLogsService?.getRecent(user?.id || null, 14);
+
+      if (!error && recentLogs) {
+        const workSessions = recentLogs?.flatMap(
+          (log) => log?.workSessions || []
+        );
+
         generateMLPredictions(recentLogs, workSessions);
-        
-        // Call external ML API
-        await callExternalMLAPI(recentLogs, workSessions);
+        await callExternalMLAPI(recentLogs);
       }
     } catch (err) {
       console.error('Load prediction data error:', err);
@@ -49,44 +47,47 @@ const Predictions = () => {
     }
   };
 
-  const callExternalMLAPI = async (recentLogs, workSessions) => {
+  const callExternalMLAPI = async (recentLogs) => {
     try {
       setApiLoading(true);
       setApiError(null);
-      
-      // Get the most recent log for current state
-      const latestLog = recentLogs?.[0];
-      if (!latestLog) {
-        setApiError('No recent data available for prediction');
+
+      if (!recentLogs || recentLogs.length < 3) {
+        setApiError("Need at least 3 daily logs to run the ML prediction.");
         return;
       }
 
-      // Transform work sessions to API format
-      const transformedSessions = workSessions?.slice(0, 10)?.map(session => {
-        const hour = parseInt(session?.startTime?.split(':')?.[0] || 0);
-        let timeOfDay = 'afternoon';
-        if (hour >= 5 && hour < 12) timeOfDay = 'morning';
-        else if (hour >= 12 && hour < 17) timeOfDay = 'afternoon';
-        else if (hour >= 17 && hour < 22) timeOfDay = 'evening';
-        else timeOfDay = 'night';
+      // oldest → newest
+      const last3 = recentLogs.slice(0, 3).reverse();
 
-        return {
-          time_of_day: timeOfDay,
-          duration: session?.duration || 0
-        };
-      }) || [];
-
-      // Prepare payload for API
-      const payload = {
-        sleep_hours: latestLog?.sleepHours || 7,
-        caffeine_mg: latestLog?.caffeineTotal || 0,
-        energy_level: latestLog?.energyLevel || 5,
-        work_sessions: transformedSessions
+      const mapSleepQuality = (v) => {
+        const s = String(v || "good").toLowerCase();
+        if (["excellent", "good", "fair", "poor"].includes(s)) return s;
+        return "good";
       };
 
-      // Call the external ML API
+      const mapEnergyLevel = (v) => {
+        const s = String(v || "medium").toLowerCase();
+        if (["high", "medium", "low"].includes(s)) return s;
+
+        const n = Number(v);
+        if (!isNaN(n)) return n >= 7 ? "high" : n <= 3 ? "low" : "medium";
+        return "medium";
+      };
+
+      const payload = {
+        recent_days: last3.map((log) => ({
+          sleep_hours: Number(log?.sleepHours || 7),
+          sleep_quality: mapSleepQuality(log?.sleepQuality),
+          caffeine_total: Number(log?.caffeineTotal || 0),
+          energy_level: mapEnergyLevel(log?.energyLevel),
+          stress_level: Number(log?.stressLevel || 5),
+          music: log?.music ? 1 : 0
+        }))
+      };
+
       const { data, error } = await mlBackendApi?.predict(payload);
-      
+
       if (error) {
         setApiError(error);
         setApiPrediction(null);
@@ -95,8 +96,8 @@ const Predictions = () => {
         setApiError(null);
       }
     } catch (err) {
-      console.error('External ML API call error:', err);
-      setApiError(err?.message || 'Failed to connect to ML backend');
+      console.error('External ML API error:', err);
+      setApiError(err?.message || "Failed to connect to ML backend");
       setApiPrediction(null);
     } finally {
       setApiLoading(false);
@@ -105,24 +106,23 @@ const Predictions = () => {
 
   const generateMLPredictions = (recentLogs, workSessions) => {
     try {
-      // Generate decision-focused predictions
-      const decisionsResult = decisionFocusedPredictions?.generateActionableInsights(
-        recentLogs,
-        workSessions,
-        timeframe
-      );
+      const decisionsResult =
+        decisionFocusedPredictions?.generateActionableInsights(
+          recentLogs,
+          workSessions
+        );
 
-      // Generate counterfactual scenarios
-      const scenariosResult = counterfactualSimulator?.simulateScenarios(
-        recentLogs,
-        workSessions
-      );
+      const scenariosResult =
+        counterfactualSimulator?.simulateScenarios(
+          recentLogs,
+          workSessions
+        );
 
-      // Assess data sufficiency
-      const dataSufficiency = uncertaintyCalibration?.assessDataSufficiency(
-        recentLogs,
-        workSessions
-      );
+      const dataSufficiency =
+        uncertaintyCalibration?.assessDataSufficiency(
+          recentLogs,
+          workSessions
+        );
 
       setMlPredictions({
         decisions: decisionsResult?.predictions || [],
@@ -134,171 +134,85 @@ const Predictions = () => {
     }
   };
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
-
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="mb-4">
-            <div className="w-2 h-2 bg-[#10b981] rounded-full animate-pulse mx-auto"></div>
-          </div>
-          <p className="text-zinc-600 text-sm tracking-wide">Generating predictions...</p>
-        </div>
+        <p className="text-zinc-500">Generating predictions...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-black p-8">
       <DemoModeBanner />
-      <div className="max-w-3xl mx-auto px-4 md:px-6 lg:px-8 py-8 md:py-10 lg:py-12">
-        {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-3xl md:text-4xl font-light text-[#EDEDED] mb-3 tracking-tight">
-            Predictions
-          </h1>
-          <p className="text-sm text-zinc-500 tracking-wide">
-            Intelligent insights and forecasting for better decisions
-          </p>
-        </div>
 
-        {/* Timeframe Selector */}
-        <div className="flex justify-center gap-2 mb-12">
-          <button
-            onClick={() => setTimeframe('overall')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-300 ${
-              timeframe === 'overall' ?'bg-[#39FF88] text-black' :'bg-[#0B0B0B] text-zinc-400 hover:bg-[#0B0B0B]/80 border border-white/5'
-            }`}
-          >
-            Overall
-          </button>
-          <button
-            onClick={() => setTimeframe('this_week')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-300 ${
-              timeframe === 'this_week' ?'bg-[#39FF88] text-black' :'bg-[#0B0B0B] text-zinc-400 hover:bg-[#0B0B0B]/80 border border-white/5'
-            }`}
-          >
-            This Week
-          </button>
-        </div>
+      <h1 className="text-3xl text-white mb-8">Predictions</h1>
 
-        {/* ML Backend Prediction Results */}
-        {(apiPrediction || apiError || apiLoading) && (
-          <div className="mb-16">
-            <h2 className="text-xl font-light text-[#EDEDED] mb-6 tracking-tight">
-              ML Backend Predictions
-            </h2>
-            
-            {apiLoading && (
-              <div className="bg-[#0B0B0B] border border-white/5 rounded-lg p-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-[#39FF88] rounded-full animate-pulse"></div>
-                  <p className="text-zinc-400 text-sm">Connecting to ML backend...</p>
-                </div>
-              </div>
-            )}
+      {/* Backend Prediction */}
+      <div className="mb-12">
+        <h2 className="text-xl text-white mb-4">ML Backend Prediction</h2>
 
-            {apiError && (
-              <div className="bg-[#0B0B0B] border border-red-500/20 rounded-lg p-6">
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-red-500 rounded-full mt-1.5"></div>
-                  <div>
-                    <p className="text-red-400 text-sm font-medium mb-1">API Connection Error</p>
-                    <p className="text-zinc-500 text-xs">{apiError}</p>
-                    <p className="text-zinc-600 text-xs mt-2">Make sure VITE_ML_API_BASE_URL is configured correctly</p>
-                  </div>
-                </div>
-              </div>
-            )}
+        {apiLoading && (
+          <p className="text-zinc-400">Connecting to ML backend...</p>
+        )}
 
-            {apiPrediction && !apiLoading && (
-              <div className="bg-[#0B0B0B] border border-[#39FF88]/20 rounded-lg p-6">
-                <div className="space-y-6">
-                  {/* Predicted Score */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-zinc-400 text-sm">Predicted Score</span>
-                      <span className="text-[#39FF88] text-2xl font-light">
-                        {apiPrediction?.predicted_score?.toFixed(1) || 'N/A'}
-                      </span>
-                    </div>
-                    <div className="w-full bg-zinc-900 rounded-full h-2">
-                      <div 
-                        className="bg-[#39FF88] h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${(apiPrediction?.predicted_score || 0) * 10}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  {/* Confidence */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-zinc-400 text-sm">Confidence</span>
-                      <span className="text-zinc-300 text-lg font-light">
-                        {((apiPrediction?.confidence || 0) * 100)?.toFixed(0)}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-zinc-900 rounded-full h-2">
-                      <div 
-                        className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${(apiPrediction?.confidence || 0) * 100}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  {/* Suggested Focus Windows */}
-                  {apiPrediction?.suggested_focus_windows && apiPrediction?.suggested_focus_windows?.length > 0 && (
-                    <div>
-                      <h3 className="text-zinc-400 text-sm mb-3">Suggested Focus Windows</h3>
-                      <div className="space-y-2">
-                        {apiPrediction?.suggested_focus_windows?.map((window, idx) => (
-                          <div 
-                            key={idx}
-                            className="bg-zinc-900/50 border border-white/5 rounded-md p-3 flex items-center justify-between"
-                          >
-                            <span className="text-zinc-300 text-sm">{window}</span>
-                            <div className="w-1.5 h-1.5 bg-[#39FF88] rounded-full"></div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+        {apiError && (
+          <div className="text-red-400">
+            <p className="font-semibold">API Error</p>
+            <p className="text-sm">{apiError}</p>
           </div>
         )}
 
-        {/* Current Predictions - Decision-Focused */}
-        <div className="mb-16">
-          <h2 className="text-xl font-light text-[#EDEDED] mb-6 tracking-tight">
-            Current Predictions
-          </h2>
-          <DecisionFocusedPredictions 
-            predictions={mlPredictions?.decisions} 
-            dataSufficiency={mlPredictions?.dataSufficiency}
-          />
-        </div>
+        {apiPrediction && (
+          <div className="bg-zinc-900 p-6 rounded-lg space-y-4">
+            <div>
+              <p className="text-zinc-400 text-sm">
+                Predicted Focus Minutes
+              </p>
+              <p className="text-3xl text-green-400">
+                {apiPrediction?.predicted_focus_minutes}
+              </p>
+            </div>
 
-        {/* What-If Scenarios */}
-        <div className="mb-16">
-          <h2 className="text-xl font-light text-[#EDEDED] mb-6 tracking-tight">
-            What-If Scenarios
-          </h2>
-          <CounterfactualSimulator scenarios={mlPredictions?.scenarios} />
-        </div>
+            <div>
+              <p className="text-zinc-400 text-sm">Confidence</p>
+              <p className="text-white">
+                {(apiPrediction?.confidence * 100).toFixed(0)}%
+              </p>
+            </div>
 
-        {/* Trend Forecasting - Uncertainty Calibration */}
-        <div className="mb-16">
-          <h2 className="text-xl font-light text-[#EDEDED] mb-6 tracking-tight">
-            Trend Forecasting
-          </h2>
-          <UncertaintyCalibration dataSufficiency={mlPredictions?.dataSufficiency} />
-        </div>
+            <div>
+              <p className="text-zinc-400 text-sm">
+                Expected Range
+              </p>
+              <p className="text-white">
+                {apiPrediction?.lower_bound} –{" "}
+                {apiPrediction?.upper_bound} minutes
+              </p>
+            </div>
+
+            {apiPrediction?.message && (
+              <p className="text-zinc-400 text-sm">
+                {apiPrediction?.message}
+              </p>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Local ML */}
+      <DecisionFocusedPredictions
+        predictions={mlPredictions?.decisions}
+        dataSufficiency={mlPredictions?.dataSufficiency}
+      />
+
+      <CounterfactualSimulator
+        scenarios={mlPredictions?.scenarios}
+      />
+
+      <UncertaintyCalibration
+        dataSufficiency={mlPredictions?.dataSufficiency}
+      />
     </div>
   );
 };
