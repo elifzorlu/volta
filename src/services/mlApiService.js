@@ -2,7 +2,7 @@
 // Connects to external ML backend for predictions, what-if scenarios, and trend forecasting
 // Replace BASE_URL with your actual ML backend endpoint
 
-const ML_API_BASE_URL = import.meta.env?.VITE_ML_API_BASE_URL || 'http://localhost:8000/api/ml';
+const ML_API_BASE_URL = import.meta.env?.VITE_ML_API_BASE_URL || 'http://localhost:8000';
 
 // Helper function for API calls
 const apiCall = async (endpoint, method = 'GET', body = null) => {
