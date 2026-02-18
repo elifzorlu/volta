@@ -14,8 +14,8 @@ const DailyLogSummary = ({ logData }) => {
     },
     {
       icon: 'Coffee',
-      label: 'Caffeine',
-      value: dailyContext?.caffeineTotal || '200',
+      label: 'Total caffeine today',
+      value: dailyContext?.caffeineTotal || '0',
       unit: 'mg'
     },
     {

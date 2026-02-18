@@ -108,7 +108,7 @@ const Today = () => {
 
         // Calculate productivity score
         if (sessionsData?.length > 0) {
-          const scoreData = productivityScoreCalculator?.calculateScore(todayLog, todayLog?.workSessions);
+          const scoreData = productivityScoreCalculator?.calculateScore(todayLog, sessionsData);
           setTodayData(scoreData);
 
           // Save score to database

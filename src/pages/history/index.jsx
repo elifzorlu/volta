@@ -4,6 +4,7 @@ import TimeframeSelector from './components/TimeframeSelector';
 import ProductivityChart from './components/ProductivityChart';
 import SummaryStats from './components/SummaryStats';
 import TrendInsight from './components/TrendInsight';
+import PastLogsSection from './components/PastLogsSection';
 import DemoModeBanner from '../../components/DemoModeBanner';
 import { useAuth } from '../../contexts/AuthContext';
 import { dailyLogsService } from '../../services/voltaService';
@@ -16,6 +17,7 @@ const History = () => {
   const [trendInsight, setTrendInsight] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [rawLogs, setRawLogs] = useState([]);
 
   useEffect(() => {
     loadHistoryData();
@@ -143,6 +145,8 @@ const History = () => {
 
       if (logs && logs?.length > 0) {
         console.log('[History] Processing logs data...');
+        // Store raw logs for PastLogsSection
+        setRawLogs(logs);
         // Format chart data
         const formattedData = logs?.map(log => {
           const date = new Date(log?.logDate);
@@ -176,6 +180,7 @@ const History = () => {
         setTrendInsight(calculateTrend(logs, activeTimeframe));
       } else {
         console.log('[History] No logs found');
+        setRawLogs([]);
         setChartData([]);
         setSummaryStats({ average: 0, highest: 0, lowest: 0, totalDays: 0 });
         setTrendInsight({
@@ -239,6 +244,8 @@ const History = () => {
             />
 
             <SummaryStats stats={summaryStats} />
+
+            <PastLogsSection logs={rawLogs} />
           </>
         )}
       </div>

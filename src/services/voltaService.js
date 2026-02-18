@@ -317,7 +317,15 @@ export const dailyLogsService = {
           updateData.sleep_quality = dailyContext?.sleepQuality;
         }
         if (dailyContext?.caffeineTotal) {
-          updateData.caffeine_total = parseInt(dailyContext?.caffeineTotal);
+          // ADD to existing caffeine total instead of replacing
+          const newCaffeineAmount = parseInt(dailyContext?.caffeineTotal);
+          const existingCaffeineTotal = existingLog?.caffeine_total || 0;
+          updateData.caffeine_total = existingCaffeineTotal + newCaffeineAmount;
+          console.log('[dailyLogsService.create] Cumulative caffeine:', {
+            existing: existingCaffeineTotal,
+            adding: newCaffeineAmount,
+            newTotal: updateData?.caffeine_total
+          });
         }
         if (dailyContext?.energyLevel) {
           updateData.energy_level = dailyContext?.energyLevel;
@@ -2059,11 +2067,26 @@ export const productivityScoreCalculator = {
     let score = 0;
 
     // Sleep quality contribution (0-25)
-    const sleepScore = (dailyLog?.sleepQuality / 5) * 25;
+    // Map ENUM values to numeric scores
+    const sleepQualityMap = {
+      'excellent': 5,
+      'good': 4,
+      'fair': 3,
+      'poor': 2
+    };
+    const sleepQualityValue = sleepQualityMap?.[dailyLog?.sleepQuality] || 3;
+    const sleepScore = (sleepQualityValue / 5) * 25;
     score += sleepScore;
 
     // Energy level contribution (0-20)
-    const energyScore = (dailyLog?.energyLevel / 5) * 20;
+    // Map ENUM values to numeric scores
+    const energyLevelMap = {
+      'high': 5,
+      'medium': 3,
+      'low': 1
+    };
+    const energyLevelValue = energyLevelMap?.[dailyLog?.energyLevel] || 3;
+    const energyScore = (energyLevelValue / 5) * 20;
     score += energyScore;
 
     // Work session efficiency (0-35)
@@ -2408,13 +2431,16 @@ export const habitLogsService = {
           console.error('Schema error:', error?.message);
           throw error;
         }
-        return { data: null, error };
+        if (error?.code === 'PGRST116') {
+          return { data: [], error: null };
+        }
+        return { data: [], error };
       }
 
       return { data: toCamelCase(data), error: null };
     } catch (error) {
       console.error('Get habit logs error:', error);
-      return { data: null, error };
+      return { data: [], error };
     }
   },
 
@@ -2438,13 +2464,16 @@ export const habitLogsService = {
           console.error('Schema error:', error?.message);
           throw error;
         }
-        return { data: null, error };
+        if (error?.code === 'PGRST116') {
+          return { data: [], error: null };
+        }
+        return { data: [], error };
       }
 
       return { data: toCamelCase(data), error: null };
     } catch (error) {
       console.error('Get habit logs by date error:', error);
-      return { data: null, error };
+      return { data: [], error };
     }
   },
 
@@ -2575,14 +2604,17 @@ export const habitLogsService = {
           console.error('Schema error:', error?.message);
           throw error;
         }
-        return { data: null, error };
+        if (error?.code === 'PGRST116') {
+          return { data: [], error: null };
+        }
+        return { data: [], error };
       }
 
       const camelData = toCamelCase(data);
       return this.calculateWeeklyStats(camelData);
     } catch (error) {
       console.error('Get weekly stats error:', error);
-      return { data: null, error };
+      return { data: [], error };
     }
   },
 

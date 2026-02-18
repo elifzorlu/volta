@@ -47,6 +47,8 @@ const LogForm = () => {
     }
   }, [selectedDate, user?.id]);
 
+  const [hasExistingLog, setHasExistingLog] = useState(false);
+
   const loadCustomCategories = async () => {
     if (!user?.id) return;
     
@@ -71,11 +73,12 @@ const LogForm = () => {
         setDailyContext({
           sleepHours: data?.sleepHours?.toString() || '',
           sleepQuality: data?.sleepQuality || '',
-          caffeineTotal: data?.caffeineTotal?.toString() || '',
+          caffeineTotal: '', // Always empty for new entries to add to total
           energyLevel: data?.energyLevel || '',
           moodTone: data?.moodTone || '',
           notes: data?.notes || ''
         });
+        setHasExistingLog(true);
       } else {
         // Clear form for new date
         setDailyContext({
@@ -86,9 +89,11 @@ const LogForm = () => {
           moodTone: '',
           notes: ''
         });
+        setHasExistingLog(false);
       }
     } catch (error) {
       console.error('Failed to load existing log data:', error);
+      setHasExistingLog(false);
     }
   };
 
@@ -212,13 +217,14 @@ const LogForm = () => {
 
     console.log('[LogForm] Validation check:', {
       hasExistingContext,
+      hasExistingLog,
       dailyContext,
       selectedDate,
       sessionsCount: sessions?.length
     });
 
     // Only validate daily context if it's a new log (no existing context)
-    if (!hasExistingContext) {
+    if (!hasExistingContext && !hasExistingLog) {
       // Validate daily context for new logs
       if (!dailyContext?.sleepHours || dailyContext?.sleepHours < 0 || dailyContext?.sleepHours > 24) {
         newErrors.context_sleepHours = 'Please enter valid sleep hours (0-24)';
@@ -372,7 +378,7 @@ const LogForm = () => {
             value={dailyContext?.sleepHours}
             onChange={(e) => handleDailyContextChange('sleepHours', e?.target?.value)}
             error={errors?.context_sleepHours}
-            required
+            required={!hasExistingLog}
             min="0"
             max="24"
             step="0.5"
@@ -389,7 +395,7 @@ const LogForm = () => {
             onChange={(value) => handleDailyContextChange('sleepQuality', value)}
             error={errors?.context_sleepQuality}
             placeholder="Select quality"
-            required
+            required={!hasExistingLog}
             className="transition-all duration-300"
           />
         </div>
@@ -397,13 +403,13 @@ const LogForm = () => {
         <div className="space-y-3 lg:space-y-4">
           <Input
             type="number"
-            label="Caffeine Total (mg)"
-            description="Total caffeine consumed (1 cup coffee ≈ 95mg)"
-            placeholder="200"
+            label={hasExistingLog ? "Add Caffeine (mg)" : "Caffeine Total (mg)"}
+            description={hasExistingLog ? "Add to today's caffeine total (1 cup coffee ≈ 95mg)" : "Total caffeine consumed (1 cup coffee ≈ 95mg)"}
+            placeholder="95"
             value={dailyContext?.caffeineTotal}
             onChange={(e) => handleDailyContextChange('caffeineTotal', e?.target?.value)}
             error={errors?.context_caffeineTotal}
-            required
+            required={!hasExistingLog}
             min="0"
             className="transition-all duration-300"
           />
@@ -418,7 +424,7 @@ const LogForm = () => {
             onChange={(value) => handleDailyContextChange('energyLevel', value)}
             error={errors?.context_energyLevel}
             placeholder="Select energy level"
-            required
+            required={!hasExistingLog}
             className="transition-all duration-300"
           />
         </div>
