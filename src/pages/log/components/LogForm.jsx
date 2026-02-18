@@ -213,12 +213,20 @@ const LogForm = () => {
       return;
     }
 
+    // Ensure user is loaded before submission
+    if (!isDemoMode && !user?.id) {
+      setErrors({ submit: 'User session not loaded. Please refresh and try again.' });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const logDate = new Date()?.toISOString()?.split('T')?.[0];
+      const userId = isDemoMode ? null : user?.id;
+      
       const { data, error } = await dailyLogsService?.create(
-        user?.id || null,
+        userId,
         dailyContext,
         sessions,
         logDate
