@@ -280,41 +280,89 @@ export const dailyLogsService = {
     }
 
     try {
-      // Upsert daily log (insert or update if exists)
-      const { data: dailyLog, error: logError } = await supabase?.from('daily_logs')?.upsert({
-          user_id: userId,
-          log_date: logDate,
-          sleep_hours: parseFloat(dailyContext?.sleepHours),
-          sleep_quality: dailyContext?.sleepQuality,
-          caffeine_total: parseInt(dailyContext?.caffeineTotal),
-          energy_level: dailyContext?.energyLevel,
-          mood_tone: dailyContext?.moodTone || null,
-          notes: dailyContext?.notes || null
-        }, {
-          onConflict: 'user_id,log_date'
-        })?.select()?.single();
-
-      if (logError) {
-        if (isSchemaError(logError)) {
-          console.error('Schema error:', logError?.message);
-          throw logError;
-        }
-        return { data: null, error: logError };
-      }
-
-      // Delete existing work sessions for this date to avoid duplicates
-      const { error: deleteError } = await supabase
-        ?.from('work_sessions')
-        ?.delete()
+      // Check if a log already exists for this date
+      const { data: existingLog, error: checkError } = await supabase
+        ?.from('daily_logs')
+        ?.select('*')
         ?.eq('user_id', userId)
-        ?.eq('session_date', logDate);
+        ?.eq('log_date', logDate)
+        ?.single();
 
-      if (deleteError) {
-        console.error('Error deleting old sessions:', deleteError);
-        // Continue anyway - insert will still work
+      let dailyLog;
+
+      if (existingLog) {
+        // Log exists - only update if new context values are provided
+        const updateData = {
+          user_id: userId,
+          log_date: logDate
+        };
+
+        // Only update fields that have values
+        if (dailyContext?.sleepHours) {
+          updateData.sleep_hours = parseFloat(dailyContext?.sleepHours);
+        }
+        if (dailyContext?.sleepQuality) {
+          updateData.sleep_quality = dailyContext?.sleepQuality;
+        }
+        if (dailyContext?.caffeineTotal) {
+          updateData.caffeine_total = parseInt(dailyContext?.caffeineTotal);
+        }
+        if (dailyContext?.energyLevel) {
+          updateData.energy_level = dailyContext?.energyLevel;
+        }
+        if (dailyContext?.moodTone) {
+          updateData.mood_tone = dailyContext?.moodTone;
+        }
+        if (dailyContext?.notes) {
+          updateData.notes = dailyContext?.notes;
+        }
+
+        const { data: updatedLog, error: updateError } = await supabase
+          ?.from('daily_logs')
+          ?.update(updateData)
+          ?.eq('user_id', userId)
+          ?.eq('log_date', logDate)
+          ?.select()
+          ?.single();
+
+        if (updateError) {
+          if (isSchemaError(updateError)) {
+            console.error('Schema error:', updateError?.message);
+            throw updateError;
+          }
+          return { data: null, error: updateError };
+        }
+
+        dailyLog = updatedLog;
+      } else {
+        // No existing log - create new one with all required fields
+        const { data: newLog, error: logError } = await supabase
+          ?.from('daily_logs')
+          ?.insert({
+            user_id: userId,
+            log_date: logDate,
+            sleep_hours: parseFloat(dailyContext?.sleepHours),
+            sleep_quality: dailyContext?.sleepQuality,
+            caffeine_total: parseInt(dailyContext?.caffeineTotal),
+            energy_level: dailyContext?.energyLevel,
+            mood_tone: dailyContext?.moodTone || null,
+            notes: dailyContext?.notes || null
+          })
+          ?.select()
+          ?.single();
+
+        if (logError) {
+          if (isSchemaError(logError)) {
+            console.error('Schema error:', logError?.message);
+            throw logError;
+          }
+          return { data: null, error: logError };
+        }
+
+        dailyLog = newLog;
       }
 
-      // Insert work sessions
+      // Insert new work sessions (append to existing ones, don't delete)
       const sessionsData = sessions?.map(session => ({
         user_id: userId,
         daily_log_id: dailyLog?.id,
@@ -327,7 +375,10 @@ export const dailyLogsService = {
         session_date: logDate
       }));
 
-      const { data: workSessions, error: sessionsError } = await supabase?.from('work_sessions')?.insert(sessionsData)?.select();
+      const { data: workSessions, error: sessionsError } = await supabase
+        ?.from('work_sessions')
+        ?.insert(sessionsData)
+        ?.select();
 
       if (sessionsError) {
         if (isSchemaError(sessionsError)) {
@@ -1603,7 +1654,7 @@ function generateSignatureName(category, timeWindow, pattern, categoryEfficiency
   if (pattern === 'late-blooming') {
     const signatures = [
       {
-        signature: `The Late-Blooming ${categoryLabel?.[category]}`,
+        signature: `The ${categoryLabel?.[category]} Late-Bloomer`,
         explanation: 'Your efficiency improves as you build momentum over time.'
       },
       {

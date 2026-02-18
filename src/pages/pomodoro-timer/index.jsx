@@ -17,6 +17,7 @@ import {
   showBreakTimerComplete
 } from '../../services/notificationService';
 import { trackPomodoroEvent, trackScreenView } from '../../utils/analytics';
+import { trackHabitEvent } from '../../utils/analytics';
 import { dailyLogsService } from '../../services/voltaService';
 
 const PomodoroTimer = () => {
@@ -42,6 +43,7 @@ const PomodoroTimer = () => {
   const [showProductivityPrompt, setShowProductivityPrompt] = useState(false);
   const [productivityRating, setProductivityRating] = useState('');
   const [sessionFelt, setSessionFelt] = useState('');
+  const [completedSessions, setCompletedSessions] = useState(0);
 
   // Track screen view on mount
   useEffect(() => {
@@ -246,49 +248,70 @@ const PomodoroTimer = () => {
     }
   };
 
-  const handleProductivitySubmit = async () => {
-    if (!productivityRating) return;
+  const handleSessionComplete = async () => {
+    setShowProductivityPrompt(true);
+  };
+
+  const handleProductivitySubmit = async (productivityLevel, sessionFeeling) => {
+    if (!user?.id && !isDemoMode) {
+      console.error('No user session');
+      setShowProductivityPrompt(false);
+      return;
+    }
 
     try {
-      const userId = isDemoMode ? null : user?.id;
       const today = new Date()?.toISOString()?.split('T')?.[0];
-      const sessionEndTime = new Date();
-      const sessionDurationMinutes = Math.round((sessionEndTime - sessionStartTime) / 60000);
+      const now = new Date();
+      const startTime = new Date(now?.getTime() - (sessionDurations?.['focus'] * 1000));
+      
+      const userId = isDemoMode ? null : user?.id;
 
-      // Get current time in HH:MM format
-      const startTimeFormatted = sessionStartTime?.toTimeString()?.slice(0, 5);
-      const endTimeFormatted = sessionEndTime?.toTimeString()?.slice(0, 5);
+      // Fetch existing log to get daily context
+      const { data: existingLog } = await dailyLogsService?.getByDate(userId, today);
 
-      // Create a work session entry
-      const sessionData = [{
-        id: Date.now(),
-        category: 'pomodoro',
-        startTime: startTimeFormatted,
-        endTime: endTimeFormatted,
-        efficiency: productivityRating,
-        felt: sessionFelt || 'locked-in',
-        tags: ['pomodoro', 'focus']
-      }];
-
-      // Get existing daily context or create minimal one
-      const dailyContext = {
+      // Prepare daily context - use existing values or defaults
+      const dailyContext = existingLog ? {
+        sleepHours: existingLog?.sleepHours,
+        sleepQuality: existingLog?.sleepQuality,
+        caffeineTotal: existingLog?.caffeineTotal,
+        energyLevel: existingLog?.energyLevel,
+        moodTone: existingLog?.moodTone,
+        notes: existingLog?.notes
+      } : {
         sleepHours: 7,
         sleepQuality: 'good',
         caffeineTotal: 0,
         energyLevel: 'medium',
-        moodTone: 'focused',
-        notes: `Pomodoro session completed (${sessionDurationMinutes} minutes)`
+        moodTone: null,
+        notes: null
       };
 
+      // Create session data
+      const sessionData = [{
+        category: 'pomodoro',
+        startTime: startTime?.toTimeString()?.slice(0, 5),
+        endTime: now?.toTimeString()?.slice(0, 5),
+        efficiency: productivityLevel,
+        felt: sessionFeeling,
+        tags: ['pomodoro', 'focus']
+      }];
+
+      // Save to database - this will append to existing sessions
       await dailyLogsService?.create(userId, dailyContext, sessionData, today);
 
-      // Reset prompt state
+      // Track analytics
+      trackHabitEvent('pomodoro_completed', {
+        duration: sessionDurations?.['focus'] / 60,
+        productivity_level: productivityLevel,
+        session_feeling: sessionFeeling,
+        user_type: user?.id ? 'authenticated' : 'demo'
+      });
+
       setShowProductivityPrompt(false);
-      setProductivityRating('');
-      setSessionFelt('');
-      setSessionStartTime(null);
+      setCompletedSessions(prev => prev + 1);
     } catch (error) {
-      console.error('Failed to log pomodoro session:', error);
+      console.error('Failed to save pomodoro session:', error);
+      setShowProductivityPrompt(false);
     }
   };
 

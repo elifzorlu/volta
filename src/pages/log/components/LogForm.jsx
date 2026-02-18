@@ -40,6 +40,13 @@ const LogForm = () => {
     loadCustomCategories();
   }, [user?.id]);
 
+  // Load existing log data when date changes
+  useEffect(() => {
+    if (selectedDate && user?.id) {
+      loadExistingLogData();
+    }
+  }, [selectedDate, user?.id]);
+
   const loadCustomCategories = async () => {
     if (!user?.id) return;
     
@@ -50,6 +57,38 @@ const LogForm = () => {
       }
     } catch (error) {
       console.error('Failed to load custom categories:', error);
+    }
+  };
+
+  const loadExistingLogData = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const { data, error } = await dailyLogsService?.getByDate(user?.id, selectedDate);
+      
+      if (!error && data) {
+        // Pre-fill daily context with existing data
+        setDailyContext({
+          sleepHours: data?.sleepHours?.toString() || '',
+          sleepQuality: data?.sleepQuality || '',
+          caffeineTotal: data?.caffeineTotal?.toString() || '',
+          energyLevel: data?.energyLevel || '',
+          moodTone: data?.moodTone || '',
+          notes: data?.notes || ''
+        });
+      } else {
+        // Clear form for new date
+        setDailyContext({
+          sleepHours: '',
+          sleepQuality: '',
+          caffeineTotal: '',
+          energyLevel: '',
+          moodTone: '',
+          notes: ''
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load existing log data:', error);
     }
   };
 
@@ -167,21 +206,28 @@ const LogForm = () => {
   const validateForm = () => {
     const newErrors = {};
 
-    // Validate daily context
-    if (!dailyContext?.sleepHours || dailyContext?.sleepHours < 0 || dailyContext?.sleepHours > 24) {
-      newErrors.context_sleepHours = 'Please enter valid sleep hours (0-24)';
-    }
+    // Check if this is an existing log by checking if any daily context field is already filled
+    const hasExistingContext = dailyContext?.sleepHours || dailyContext?.sleepQuality || 
+                               dailyContext?.caffeineTotal || dailyContext?.energyLevel;
 
-    if (!dailyContext?.sleepQuality) {
-      newErrors.context_sleepQuality = 'Please select your sleep quality';
-    }
+    // Only validate daily context if it's a new log (no existing context)
+    if (!hasExistingContext) {
+      // Validate daily context for new logs
+      if (!dailyContext?.sleepHours || dailyContext?.sleepHours < 0 || dailyContext?.sleepHours > 24) {
+        newErrors.context_sleepHours = 'Please enter valid sleep hours (0-24)';
+      }
 
-    if (!dailyContext?.caffeineTotal || dailyContext?.caffeineTotal < 0) {
-      newErrors.context_caffeineTotal = 'Please enter valid caffeine total';
-    }
+      if (!dailyContext?.sleepQuality) {
+        newErrors.context_sleepQuality = 'Please select your sleep quality';
+      }
 
-    if (!dailyContext?.energyLevel) {
-      newErrors.context_energyLevel = 'Please select your energy level';
+      if (!dailyContext?.caffeineTotal || dailyContext?.caffeineTotal < 0) {
+        newErrors.context_caffeineTotal = 'Please enter valid caffeine total';
+      }
+
+      if (!dailyContext?.energyLevel) {
+        newErrors.context_energyLevel = 'Please select your energy level';
+      }
     }
 
     // Validate sessions
