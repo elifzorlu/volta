@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 import VoltaLogo from '../../components/VoltaLogo';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -67,11 +68,21 @@ const Auth = () => {
         if (signInError) {
           setError(signInError?.message || 'Failed to sign in');
         } else {
-          // Check if user has completed onboarding
-          const onboardingComplete = localStorage.getItem('volta_onboarding_complete');
-          if (onboardingComplete) {
-            navigate('/today');
+          // Check if user profile already has data (existing user)
+          const { data: { user: currentUser } } = await supabase?.auth?.getUser();
+          if (currentUser) {
+            const { data: profile } = await supabase?.from('user_profiles')?.select('display_name, settings')?.eq('id', currentUser?.id)?.single();
+            
+            // If profile has displayName and settings, user has completed onboarding
+            if (profile?.display_name && profile?.settings) {
+              localStorage.setItem('volta_onboarding_complete', 'true');
+              navigate('/today');
+            } else {
+              // New user or incomplete profile - go to personal setup
+              navigate('/personal-setup');
+            }
           } else {
+            // Fallback to personal setup if profile check fails
             navigate('/personal-setup');
           }
         }

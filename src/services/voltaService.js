@@ -280,8 +280,8 @@ export const dailyLogsService = {
     }
 
     try {
-      // Insert daily log
-      const { data: dailyLog, error: logError } = await supabase?.from('daily_logs')?.insert({
+      // Upsert daily log (insert or update if exists)
+      const { data: dailyLog, error: logError } = await supabase?.from('daily_logs')?.upsert({
           user_id: userId,
           log_date: logDate,
           sleep_hours: parseFloat(dailyContext?.sleepHours),
@@ -290,6 +290,8 @@ export const dailyLogsService = {
           energy_level: dailyContext?.energyLevel,
           mood_tone: dailyContext?.moodTone || null,
           notes: dailyContext?.notes || null
+        }, {
+          onConflict: 'user_id,log_date'
         })?.select()?.single();
 
       if (logError) {
@@ -298,6 +300,18 @@ export const dailyLogsService = {
           throw logError;
         }
         return { data: null, error: logError };
+      }
+
+      // Delete existing work sessions for this date to avoid duplicates
+      const { error: deleteError } = await supabase
+        ?.from('work_sessions')
+        ?.delete()
+        ?.eq('user_id', userId)
+        ?.eq('session_date', logDate);
+
+      if (deleteError) {
+        console.error('Error deleting old sessions:', deleteError);
+        // Continue anyway - insert will still work
       }
 
       // Insert work sessions
