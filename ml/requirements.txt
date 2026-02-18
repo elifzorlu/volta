@@ -2,3 +2,8 @@ pandas
 numpy
 scikit-learn
 joblib
+fastapi==0.115.0
+uvicorn==0.30.0
+torch==2.10.0
+numpy==2.4.2
+pydantic==2.9.0
