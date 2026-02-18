@@ -6,7 +6,7 @@ import SummaryStats from './components/SummaryStats';
 import TrendInsight from './components/TrendInsight';
 import DemoModeBanner from '../../components/DemoModeBanner';
 import { useAuth } from '../../contexts/AuthContext';
-import { productivityScoresService } from '../../services/voltaService';
+import { dailyLogsService } from '../../services/voltaService';
 
 const History = () => {
   const { user, isDemoMode } = useAuth();
@@ -49,8 +49,18 @@ const History = () => {
     };
   };
 
-  const calculateStats = (scores) => {
-    if (!scores || scores?.length === 0) {
+  const calculateScoreFromSessions = (workSessions) => {
+    if (!workSessions || workSessions?.length === 0) return 0;
+    
+    const totalEfficiency = workSessions?.reduce((sum, session) => sum + (session?.efficiency || 0), 0);
+    const avgEfficiency = totalEfficiency / workSessions?.length;
+    
+    // Convert 1-5 efficiency scale to 0-100 score
+    return Math.round((avgEfficiency / 5) * 100);
+  };
+
+  const calculateStats = (logs) => {
+    if (!logs || logs?.length === 0) {
       return {
         average: 0,
         highest: 0,
@@ -59,19 +69,19 @@ const History = () => {
       };
     }
 
-    const scoreValues = scores?.map(s => s?.score);
-    const sum = scoreValues?.reduce((acc, val) => acc + val, 0);
+    const scores = logs?.map(log => calculateScoreFromSessions(log?.workSessions));
+    const sum = scores?.reduce((acc, val) => acc + val, 0);
     
     return {
       average: Math.round(sum / scores?.length),
-      highest: Math.max(...scoreValues),
-      lowest: Math.min(...scoreValues),
-      totalDays: scores?.length
+      highest: Math.max(...scores),
+      lowest: Math.min(...scores),
+      totalDays: logs?.length
     };
   };
 
-  const calculateTrend = (scores, timeframe) => {
-    if (!scores || scores?.length < 2) {
+  const calculateTrend = (logs, timeframe) => {
+    if (!logs || logs?.length < 2) {
       return {
         direction: 'neutral',
         title: 'Insufficient Data',
@@ -79,11 +89,12 @@ const History = () => {
       };
     }
 
+    const scores = logs?.map(log => calculateScoreFromSessions(log?.workSessions));
     const firstHalf = scores?.slice(0, Math.floor(scores?.length / 2));
     const secondHalf = scores?.slice(Math.floor(scores?.length / 2));
     
-    const firstAvg = firstHalf?.reduce((acc, s) => acc + s?.score, 0) / firstHalf?.length;
-    const secondAvg = secondHalf?.reduce((acc, s) => acc + s?.score, 0) / secondHalf?.length;
+    const firstAvg = firstHalf?.reduce((acc, s) => acc + s, 0) / firstHalf?.length;
+    const secondAvg = secondHalf?.reduce((acc, s) => acc + s, 0) / secondHalf?.length;
     
     const percentChange = Math.round(((secondAvg - firstAvg) / firstAvg) * 100);
     const direction = percentChange > 5 ? 'up' : percentChange < -5 ? 'down' : 'neutral';
@@ -114,22 +125,22 @@ const History = () => {
       setLoading(true);
       const { startDate, endDate } = getDateRange(activeTimeframe);
       
-      const { data: scores, error: scoresError } = await productivityScoresService?.getByDateRange(
+      const { data: logs, error: logsError } = await dailyLogsService?.getByDateRange(
         user?.id || null,
         startDate,
         endDate
       );
 
-      if (scoresError) {
-        console.error('Error loading scores:', scoresError);
+      if (logsError) {
+        console.error('Error loading logs:', logsError);
         setError('Failed to load productivity history');
         return;
       }
 
-      if (scores && scores?.length > 0) {
+      if (logs && logs?.length > 0) {
         // Format chart data
-        const formattedData = scores?.map(s => {
-          const date = new Date(s.scoreDate);
+        const formattedData = logs?.map(log => {
+          const date = new Date(log?.logDate);
           let dateLabel;
           
           if (activeTimeframe === 'week') {
@@ -142,13 +153,13 @@ const History = () => {
 
           return {
             date: dateLabel,
-            score: s?.score
+            score: calculateScoreFromSessions(log?.workSessions)
           };
         })?.reverse();
 
         setChartData(formattedData);
-        setSummaryStats(calculateStats(scores));
-        setTrendInsight(calculateTrend(scores, activeTimeframe));
+        setSummaryStats(calculateStats(logs));
+        setTrendInsight(calculateTrend(logs, activeTimeframe));
       } else {
         setChartData([]);
         setSummaryStats({ average: 0, highest: 0, lowest: 0, totalDays: 0 });

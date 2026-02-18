@@ -61,3 +61,28 @@ html {
 .slider-thumb:focus::-moz-range-thumb {
   box-shadow: 0 0 0 3px rgba(57, 255, 136, 0.2);
 }
+
+/* Navigation layout adjustments to prevent button cutoff */
+.primary-tab-navigation-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1rem;
+}
+
+.primary-tab-navigation-tabs {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.primary-tab-navigation-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.primary-tab-navigation-tab {
+  flex-shrink: 0;
+  white-space: nowrap;
+}

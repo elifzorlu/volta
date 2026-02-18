@@ -11,6 +11,7 @@ import { trackHabitEvent, trackFormSubmit } from '../../../utils/analytics';
 const LogForm = () => {
   const navigate = useNavigate();
   const { user, isDemoMode } = useAuth();
+  const [selectedDate, setSelectedDate] = useState(new Date()?.toISOString()?.split('T')?.[0]);
   const [dailyContext, setDailyContext] = useState({
     sleepHours: '',
     sleepQuality: '',
@@ -96,6 +97,10 @@ const LogForm = () => {
     'deep-work', 'meetings', 'research', 'writing', 'coding', 
     'design', 'planning', 'review', 'collaboration', 'learning'
   ];
+
+  const handleDateChange = (e) => {
+    setSelectedDate(e?.target?.value);
+  };
 
   const handleDailyContextChange = (field, value) => {
     setDailyContext(prev => ({
@@ -222,14 +227,13 @@ const LogForm = () => {
     setIsSubmitting(true);
 
     try {
-      const logDate = new Date()?.toISOString()?.split('T')?.[0];
       const userId = isDemoMode ? null : user?.id;
       
       const { data, error } = await dailyLogsService?.create(
         userId,
         dailyContext,
         sessions,
-        logDate
+        selectedDate
       );
 
       if (error) {
@@ -243,7 +247,8 @@ const LogForm = () => {
         session_count: sessions?.length,
         has_notes: !!dailyContext?.notes,
         sleep_hours: dailyContext?.sleepHours,
-        user_type: user?.id ? 'authenticated' : 'demo'
+        user_type: user?.id ? 'authenticated' : 'demo',
+        log_date: selectedDate
       });
 
       // Track form submission
@@ -270,6 +275,16 @@ const LogForm = () => {
             <Icon name="Calendar" size={20} color="var(--color-accent)" strokeWidth={2} />
           </div>
           <h2 className="text-xl md:text-2xl font-semibold text-foreground">Daily Context</h2>
+        </div>
+
+        <div className="space-y-3 lg:space-y-4">
+          <Input
+            type="date"
+            label="Date"
+            value={selectedDate}
+            onChange={handleDateChange}
+            className="transition-all duration-300"
+          />
         </div>
 
         <div className="space-y-3 lg:space-y-4">

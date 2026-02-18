@@ -17,6 +17,7 @@ import {
   showBreakTimerComplete
 } from '../../services/notificationService';
 import { trackPomodoroEvent, trackScreenView } from '../../utils/analytics';
+import { dailyLogsService } from '../../services/voltaService';
 
 const PomodoroTimer = () => {
   const { user, userProfile, isDemoMode } = useAuth();
@@ -35,6 +36,12 @@ const PomodoroTimer = () => {
   
   // Stopwatch state
   const [elapsedTime, setElapsedTime] = useState(0);
+
+  // Session tracking for auto-logging
+  const [sessionStartTime, setSessionStartTime] = useState(null);
+  const [showProductivityPrompt, setShowProductivityPrompt] = useState(false);
+  const [productivityRating, setProductivityRating] = useState('');
+  const [sessionFelt, setSessionFelt] = useState('');
 
   // Track screen view on mount
   useEffect(() => {
@@ -161,6 +168,8 @@ const PomodoroTimer = () => {
       if (Notification?.permission === 'granted') {
         showFocusTimerComplete();
       }
+      // Show productivity prompt after focus session
+      setShowProductivityPrompt(true);
       // Auto-switch to break
       const nextBreak = (completedPomodoros + 1) % pomodorosUntilLongBreak === 0 ? 'long-break' : 'short-break';
       setSessionType(nextBreak);
@@ -178,6 +187,7 @@ const PomodoroTimer = () => {
 
   const handleStart = () => {
     setIsRunning(true);
+    setSessionStartTime(new Date());
     
     // Track Pomodoro start event
     trackPomodoroEvent('started', {
@@ -234,6 +244,59 @@ const PomodoroTimer = () => {
       const newTime = Math.max(60, timeRemaining + amount);
       setTimeRemaining(newTime);
     }
+  };
+
+  const handleProductivitySubmit = async () => {
+    if (!productivityRating) return;
+
+    try {
+      const userId = isDemoMode ? null : user?.id;
+      const today = new Date()?.toISOString()?.split('T')?.[0];
+      const sessionEndTime = new Date();
+      const sessionDurationMinutes = Math.round((sessionEndTime - sessionStartTime) / 60000);
+
+      // Get current time in HH:MM format
+      const startTimeFormatted = sessionStartTime?.toTimeString()?.slice(0, 5);
+      const endTimeFormatted = sessionEndTime?.toTimeString()?.slice(0, 5);
+
+      // Create a work session entry
+      const sessionData = [{
+        id: Date.now(),
+        category: 'pomodoro',
+        startTime: startTimeFormatted,
+        endTime: endTimeFormatted,
+        efficiency: productivityRating,
+        felt: sessionFelt || 'locked-in',
+        tags: ['pomodoro', 'focus']
+      }];
+
+      // Get existing daily context or create minimal one
+      const dailyContext = {
+        sleepHours: 7,
+        sleepQuality: 'good',
+        caffeineTotal: 0,
+        energyLevel: 'medium',
+        moodTone: 'focused',
+        notes: `Pomodoro session completed (${sessionDurationMinutes} minutes)`
+      };
+
+      await dailyLogsService?.create(userId, dailyContext, sessionData, today);
+
+      // Reset prompt state
+      setShowProductivityPrompt(false);
+      setProductivityRating('');
+      setSessionFelt('');
+      setSessionStartTime(null);
+    } catch (error) {
+      console.error('Failed to log pomodoro session:', error);
+    }
+  };
+
+  const handleProductivityCancel = () => {
+    setShowProductivityPrompt(false);
+    setProductivityRating('');
+    setSessionFelt('');
+    setSessionStartTime(null);
   };
 
   // Format duration for display (e.g., "25m", "5m")
@@ -345,6 +408,75 @@ const PomodoroTimer = () => {
           showManualLog={showManualLog}
           onToggle={handleManualLogToggle}
         />
+
+        {/* Productivity Prompt Modal */}
+        {showProductivityPrompt && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 max-w-md w-full space-y-6">
+              <div>
+                <h3 className="text-xl font-semibold text-foreground mb-2">Session Complete!</h3>
+                <p className="text-sm text-muted-foreground">How productive was this session?</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-3">Productivity Level</label>
+                  <div className="flex gap-2">
+                    {['1', '2', '3', '4', '5']?.map(rating => (
+                      <button
+                        key={rating}
+                        type="button"
+                        onClick={() => setProductivityRating(rating)}
+                        className={`flex-1 py-3 rounded-md text-sm font-medium transition-all ${
+                          productivityRating === rating
+                            ? 'bg-accent text-black' :'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
+                      >
+                        {rating}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">1 = Barely productive, 5 = Extremely productive</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-3">How did it feel?</label>
+                  <div className="flex gap-2">
+                    {[{ value: 'locked-in', label: 'Locked-in' }, { value: 'scattered', label: 'Scattered' }, { value: 'forced', label: 'Forced' }]?.map(option => (
+                      <button
+                        key={option?.value}
+                        type="button"
+                        onClick={() => setSessionFelt(option?.value)}
+                        className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
+                          sessionFelt === option?.value
+                            ? 'bg-accent text-black' :'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
+                      >
+                        {option?.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleProductivityCancel}
+                  className="flex-1 py-2 px-4 rounded-md text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+                >
+                  Skip
+                </button>
+                <button
+                  onClick={handleProductivitySubmit}
+                  disabled={!productivityRating}
+                  className="flex-1 py-2 px-4 rounded-md text-sm font-medium bg-accent text-black hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

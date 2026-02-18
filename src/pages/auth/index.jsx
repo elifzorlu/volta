@@ -152,7 +152,7 @@ const Auth = () => {
             </div>
           )}
 
-          <div className="pt-2">
+          <div className="pt-6 pb-2">
             <Button
               type="submit"
               disabled={loading}
